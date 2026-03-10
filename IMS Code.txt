@@ -1,0 +1,2454 @@
+import React, { useState, useMemo, useRef } from 'react';
+import { 
+  LayoutDashboard, 
+  PackageSearch, 
+  ShoppingCart, 
+  Settings, 
+  Plus, 
+  Search, 
+  Eye, 
+  EyeOff,
+  Trash2, 
+  Pencil,
+  AlertTriangle,
+  XCircle,
+  Package,
+  Activity,
+  Pill,
+  ArrowRight,
+  PlusCircle,
+  MinusCircle,
+  CheckCircle2,
+  Stethoscope,
+  User,
+  History,
+  FileText,
+  Clock,
+  ChevronRight,
+  ChevronLeft,
+  Scissors,
+  Banknote,
+  Syringe,
+  Archive,
+  ShieldPlus,
+  Shield,
+  Wind,
+  Droplet,
+  Sparkles,
+  HeartPulse,
+  Cross,
+  Bandage,
+  FlaskConical,
+  Microscope,
+  Thermometer,
+  ClipboardList,
+  Download,
+  ClipboardCheck,
+  PackagePlus,
+  Database,
+  Upload,
+  FileSpreadsheet
+} from 'lucide-react';
+
+// --- INITIAL MOCK DATA ---
+const initialInventory = [
+  { id: '#MED101', name: 'Amoxicillin 500mg', category: 'Antibiotics', quantity: 1200, price: 50.00, unit: 'Capsules', threshold: 200 },
+  { id: '#MED102', name: 'Panadol (Paracetamol)', category: 'Pain Relievers', quantity: 45, price: 5.00, unit: 'Tablets', threshold: 100 },
+  { id: '#MED103', name: 'Vitamin C 1000mg', category: 'Vitamins & Supplements', quantity: 500, price: 15.00, unit: 'Tablets', threshold: 100 },
+  { id: '#MED104', name: 'Acyclovir 400mg', category: 'Antiviral Drugs', quantity: 0, price: 120.00, unit: 'Tablets', threshold: 50 },
+  { id: '#MED105', name: 'Insulin Glargine', category: 'Diabetes Care', quantity: 30, price: 1500.00, unit: 'Vials', threshold: 20 },
+  { id: '#MED106', name: 'Salbutamol Inhaler', category: 'Respiratory', quantity: 60, price: 450.00, unit: 'Inhalers', threshold: 15 },
+  { id: '#MED107', name: 'Loratadine 10mg', category: 'Allergy Medication', quantity: 350, price: 10.00, unit: 'Tablets', threshold: 100 },
+  { id: '#MED108', name: 'Amlodipine 5mg', category: 'Cardiovascular', quantity: 80, price: 15.00, unit: 'Tablets', threshold: 100 },
+];
+
+const AVAILABLE_ICONS = {
+  ShieldPlus, Pill, Sparkles, Shield, Droplet, Wind, HeartPulse, Scissors, Stethoscope, Syringe, Archive, Activity, Package, FlaskConical, Thermometer
+};
+
+const initialCategoryMap = {
+  'Antibiotics': 'ShieldPlus',
+  'Pain Relievers': 'Pill',
+  'Vitamins & Supplements': 'Sparkles',
+  'Antiviral Drugs': 'Shield',
+  'Diabetes Care': 'Droplet',
+  'Respiratory': 'Wind',
+  'Allergy Medication': 'Pill',
+  'Cardiovascular': 'HeartPulse',
+  'Surgical Items': 'Scissors',
+  'Equipments': 'Stethoscope',
+  'Vaccines': 'Syringe',
+  'Others': 'Archive'
+};
+
+// HELPER: Format date to "4 Feb 2026, 7:55 PM"
+const formatDisplayDate = (dateString) => {
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  const day = date.getDate();
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = monthNames[date.getMonth()];
+  const year = date.getFullYear();
+  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${day} ${month} ${year}, ${time}`;
+};
+
+// HELPERS FOR CUSTOM ANALYTICS BOUNDARIES
+const getCustomWeekStart = (date, startDay) => {
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  const day = d.getDay();
+  const diff = day >= startDay ? day - startDay : 7 - (startDay - day);
+  d.setDate(d.getDate() - diff);
+  return d;
+};
+
+const getCustomMonthStart = (date, startDateNum) => {
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  if (d.getDate() >= startDateNum) {
+      d.setDate(startDateNum);
+  } else {
+      d.setMonth(d.getMonth() - 1);
+      d.setDate(startDateNum);
+  }
+  return d;
+};
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [inventory, setInventory] = useState(initialInventory);
+  const [historyRecords, setHistoryRecords] = useState([]); 
+  const [categoryMap, setCategoryMap] = useState(initialCategoryMap);
+  const [hiddenCategories, setHiddenCategories] = useState([]);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  
+  // SEPARATED SEARCH STATES
+  const [dashboardSearch, setDashboardSearch] = useState('');
+  const [dispenseSearch, setDispenseSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); 
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [categoryViewMode, setCategoryViewMode] = useState('products');
+  
+  // Cart State for Dispensing
+  const [cart, setCart] = useState([]);
+  const [dispenseTab, setDispenseTab] = useState('create'); 
+  const [recordSearch, setRecordSearch] = useState(''); 
+
+  // Purchase Order State
+  const [poDraft, setPoDraft] = useState([]);
+  const [poSearch, setPoSearch] = useState('');
+  const [poFilter, setPoFilter] = useState('low'); 
+  const [poHistory, setPoHistory] = useState([]);
+  const [poHistorySearch, setPoHistorySearch] = useState('');
+  const [poTab, setPoTab] = useState('create'); 
+  const [receivingPO, setReceivingPO] = useState(null); 
+  const [viewingPO, setViewingPO] = useState(null);
+
+  // Modals & Settings State
+  const [isReceivingModalOpen, setIsReceivingModalOpen] = useState(false);
+  const [receiveMode, setReceiveMode] = useState('existing'); 
+  const [viewingProduct, setViewingProduct] = useState(null); 
+  const [itemToDelete, setItemToDelete] = useState(null); 
+  const [editingProduct, setEditingProduct] = useState(null); 
+  const [editForm, setEditForm] = useState(null);
+  const [viewingRecord, setViewingRecord] = useState(null); 
+  const [editingRecord, setEditingRecord] = useState(null); 
+  const [recordToDelete, setRecordToDelete] = useState(null); 
+  
+  const [receiveForm, setReceiveForm] = useState({ id: '', name: '', category: 'Antibiotics', quantity: '', price: '', unit: 'Tablets', threshold: '50' });
+
+  // Settings & Category Modals
+  const [settings, setSettings] = useState({ weekStartDay: 1, monthStartDate: 1 });
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [categoryModalMode, setCategoryModalMode] = useState('add');
+  const [categoryForm, setCategoryForm] = useState({ oldName: '', name: '', icon: 'Pill' });
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
+
+  // --- STATS ---
+  const totalProducts = inventory.length;
+  const lowStockCount = inventory.filter(i => i.quantity > 0 && i.quantity <= i.threshold).length;
+  const outOfStockCount = inventory.filter(i => i.quantity === 0).length;
+
+  const getStatus = (item) => {
+    if (item.quantity === 0) return { label: 'Out of stock', color: 'bg-red-100 text-red-700' };
+    if (item.quantity <= item.threshold) return { label: 'Low stock', color: 'bg-yellow-100 text-yellow-700' };
+    return { label: 'In stock', color: 'bg-green-100 text-green-700' };
+  };
+
+  // FILTERS
+  const dashboardFiltered = inventory.filter(item => {
+    const searchLower = dashboardSearch.trim().toLowerCase();
+    const matchesSearch = searchLower === '' || 
+                          item.name.toLowerCase().includes(searchLower) || 
+                          item.category.toLowerCase().includes(searchLower);
+    
+    let matchesStatus = true;
+    if (statusFilter === 'low') matchesStatus = item.quantity > 0 && item.quantity <= item.threshold;
+    if (statusFilter === 'out') matchesStatus = item.quantity === 0;
+    if (statusFilter === 'in') matchesStatus = item.quantity > item.threshold;
+
+    let matchesCategory = true;
+    if (categoryFilter !== 'All') {
+      matchesCategory = item.category === categoryFilter;
+    }
+
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
+
+  const dispenseFiltered = inventory.filter(item => {
+    const searchLower = dispenseSearch.trim().toLowerCase();
+    return searchLower === '' || 
+           item.name.toLowerCase().includes(searchLower) || 
+           item.category.toLowerCase().includes(searchLower);
+  });
+
+  const filteredHistoryRecords = historyRecords.filter(record => {
+    if (!recordSearch) return true;
+    return record.recordId.toString().includes(recordSearch);
+  });
+
+  const poFilteredInventory = inventory.filter(item => {
+    const searchLower = poSearch.trim().toLowerCase();
+    const matchesSearch = searchLower === '' || 
+                          item.name.toLowerCase().includes(searchLower) || 
+                          item.category.toLowerCase().includes(searchLower);
+    
+    let matchesStatus = true;
+    if (poFilter === 'low') matchesStatus = item.quantity > 0 && item.quantity <= item.threshold;
+    if (poFilter === 'out') matchesStatus = item.quantity === 0;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const filteredPoHistory = poHistory.filter(po => {
+    if (!poHistorySearch) return true;
+    return po.poId.toLowerCase().includes(poHistorySearch.toLowerCase());
+  });
+
+  const categoryStats = useMemo(() => {
+    const stats = {};
+    Object.keys(categoryMap).forEach(cat => {
+      stats[cat] = { units: 0, products: 0, value: 0 };
+    });
+    inventory.forEach(item => {
+      if (!stats[item.category]) {
+        stats[item.category] = { units: 0, products: 0, value: 0 };
+      }
+      stats[item.category].units += item.quantity;
+      stats[item.category].products += 1;
+      stats[item.category].value += (item.quantity * item.price);
+    });
+    return stats;
+  }, [inventory, categoryMap]);
+
+  const totalInventoryValue = useMemo(() => {
+    return inventory.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+  }, [inventory]);
+
+  // --- ACTIONS ---
+  const handleReceiveStock = (e) => {
+    e.preventDefault();
+    if (receiveMode === 'existing') {
+      setInventory(prev => prev.map(item => 
+        item.id === receiveForm.id 
+          ? { ...item, quantity: item.quantity + parseInt(receiveForm.quantity) } 
+          : item
+      ));
+    } else {
+      const newId = `#MED${Math.floor(1000 + Math.random() * 9000)}`;
+      setInventory(prev => [...prev, { 
+        ...receiveForm, 
+        id: newId, 
+        quantity: parseInt(receiveForm.quantity),
+        price: parseFloat(receiveForm.price),
+        threshold: parseInt(receiveForm.threshold)
+      }]);
+    }
+    setIsReceivingModalOpen(false);
+    setReceiveForm({ id: '', name: '', category: Object.keys(categoryMap)[0] || 'Others', quantity: '', price: '', unit: 'Tablets', threshold: '50' });
+    setReceiveMode('existing');
+  };
+
+  // --- CART / DISPENSE HANDLERS ---
+  const addToCart = (product) => {
+    if (product.quantity === 0) return;
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        if (existing.dispenseQty >= product.quantity) return prev;
+        return prev.map(item => item.id === product.id ? { ...item, dispenseQty: item.dispenseQty + 1 } : item);
+      }
+      return [...prev, { ...product, dispenseQty: 1 }];
+    });
+  };
+
+  const updateCartQty = (id, delta) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === id) {
+        const currentQty = item.dispenseQty === '' ? 0 : parseInt(item.dispenseQty);
+        const newQty = currentQty + delta;
+        if (newQty < 1) return { ...item, dispenseQty: 1 };
+        const stockProduct = inventory.find(i => i.id === id);
+        if (newQty > stockProduct.quantity) return { ...item, dispenseQty: stockProduct.quantity };
+        return { ...item, dispenseQty: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const handleQtyInputChange = (id, rawValue) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === id) {
+        if (rawValue === '') return { ...item, dispenseQty: '' };
+        let newQty = parseInt(rawValue);
+        if (isNaN(newQty)) return item;
+        const stockProduct = inventory.find(i => i.id === id);
+        if (newQty > stockProduct.quantity) newQty = stockProduct.quantity;
+        return { ...item, dispenseQty: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const handleQtyBlur = (id) => {
+     setCart(prev => prev.map(item => {
+       if (item.id === id && (item.dispenseQty === '' || item.dispenseQty < 1)) {
+         return { ...item, dispenseQty: 1 };
+       }
+       return item;
+     }));
+  };
+
+  const removeFromCart = (id) => setCart(prev => prev.filter(i => i.id !== id));
+
+  const processDispensing = () => {
+    if (cart.length === 0) return;
+    const cartTotal = cart.reduce((sum, item) => {
+      const qty = item.dispenseQty === '' ? 0 : parseInt(item.dispenseQty);
+      return sum + (item.price * qty);
+    }, 0);
+
+    const newRecord = {
+      recordId: Date.now(),
+      timestamp: new Date().toLocaleString(),
+      items: [...cart],
+      totalAmount: cartTotal
+    };
+
+    setHistoryRecords(prev => [newRecord, ...prev]);
+
+    setInventory(prev => prev.map(stockItem => {
+      const cartItem = cart.find(c => c.id === stockItem.id);
+      if (cartItem) {
+        const qtyToDeduct = cartItem.dispenseQty === '' ? 0 : parseInt(cartItem.dispenseQty);
+        return { ...stockItem, quantity: stockItem.quantity - qtyToDeduct };
+      }
+      return stockItem;
+    }));
+
+    setCart([]);
+    alert(`Medications dispensed successfully!`);
+  };
+
+  // --- PURCHASE ORDER HANDLERS ---
+  const addToPO = (item) => {
+    setPoDraft(prev => {
+      if (prev.some(p => p.id === item.id)) return prev;
+      const suggestedQty = item.threshold > 0 ? Math.max((item.threshold * 2) - item.quantity, 50) : 50;
+      return [...prev, { ...item, orderQty: suggestedQty }];
+    });
+  };
+
+  const updatePOQty = (id, delta) => {
+    setPoDraft(prev => prev.map(item => {
+      if (item.id === id) {
+        const currentQty = item.orderQty === '' ? 0 : parseInt(item.orderQty);
+        const newQty = Math.max(1, currentQty + delta);
+        return { ...item, orderQty: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const handlePOQtyInputChange = (id, rawValue) => {
+    setPoDraft(prev => prev.map(item => {
+      if (item.id === id) {
+        if (rawValue === '') return { ...item, orderQty: '' };
+        let newQty = parseInt(rawValue);
+        if (isNaN(newQty)) return item;
+        return { ...item, orderQty: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const handlePOPriceChange = (id, rawValue) => {
+    setPoDraft(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, price: rawValue === '' ? '' : parseFloat(rawValue) };
+      }
+      return item;
+    }));
+  };
+
+  const handlePOQtyBlur = (id) => {
+     setPoDraft(prev => prev.map(item => {
+       if (item.id === id && (item.orderQty === '' || item.orderQty < 1)) {
+         return { ...item, orderQty: 1 };
+       }
+       if (item.id === id && (item.price === '' || isNaN(item.price))) {
+         return { ...item, price: 0 };
+       }
+       return item;
+     }));
+  };
+
+  const removeFromPO = (id) => setPoDraft(prev => prev.filter(i => i.id !== id));
+
+  const generatePDF = (targetPO) => {
+    if (!targetPO || targetPO.items.length === 0) return;
+    
+    const printWindow = window.open('', '_blank');
+    const dateStr = formatDisplayDate(targetPO.date);
+    const poNumber = targetPO.poId;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Purchase Order ${poNumber}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; max-width: 900px; margin: auto; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+            .title { font-size: 28px; font-weight: bold; color: #0f172a; margin: 0; }
+            .clinic-info { text-align: right; }
+            .clinic-name { font-size: 20px; font-weight: bold; color: #08834c; margin: 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #cbd5e1; padding: 12px 16px; text-align: left; }
+            th { background-color: #f8fafc; color: #475569; font-weight: bold; font-size: 13px; text-transform: uppercase; }
+            td { font-size: 15px; color: #334155; }
+            .qty-col { font-weight: bold; color: #0f172a; text-align: center; }
+            .footer { margin-top: 60px; display: flex; justify-content: space-between; align-items: flex-end;}
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1 class="title">PURCHASE ORDER</h1>
+              <p style="margin: 4px 0; color: #64748b; font-weight: 500;">Date: ${dateStr}</p>
+              <p style="margin: 4px 0; color: #64748b; font-weight: 500;">PO Number: ${poNumber}</p>
+              ${targetPO.status === 'Completed' ? `<p style="margin: 4px 0; color: #08834c; font-weight: bold;">Status: COMPLETED / RECEIVED</p>` : ''}
+            </div>
+            <div class="clinic-info">
+              <p class="clinic-name">Maryam Nawaz Health Clinic</p>
+              <p style="margin: 4px 0; color: #64748b;">Bakhri Ahmad Khan, Layyah</p>
+              <p style="margin: 4px 0; color: #64748b;">Phone: 0300-0000000</p>
+            </div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 5%; text-align: center;">#</th>
+                <th style="width: ${targetPO.status === 'Completed' ? '55%' : '75%'}">Product Name</th>
+                <th style="width: 20%" class="qty-col">Order Qty</th>
+                ${targetPO.status === 'Completed' ? `<th style="width: 20%" class="qty-col">Received</th>` : ''}
+              </tr>
+            </thead>
+            <tbody>
+              ${targetPO.items.map((item, index) => `
+                <tr>
+                  <td style="color: #64748b; text-align: center;">${index + 1}</td>
+                  <td><strong>${item.name}</strong></td>
+                  <td class="qty-col" style="font-size: 16px;">${item.orderQty} ${item.unit}</td>
+                  ${targetPO.status === 'Completed' ? `<td class="qty-col" style="font-size: 16px; color: #08834c;">${item.receivedQty || 0} ${item.unit}</td>` : ''}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="footer">
+            <div>
+              <p style="color: #64748b; font-size: 14px; margin-bottom: 30px;">Please supply the items listed above as per the requested quantities.</p>
+              <div style="width: 250px; text-align: center;">
+                <div style="font-family: 'Brush Script MT', 'Comic Sans MS', cursive; font-size: 32px; color: #0f172a; line-height: 1; margin-bottom: 5px;">Dr. Usama Akram</div>
+                <div style="border-top: 1px solid #94a3b8; padding-top: 8px; color: #64748b; font-size: 14px;">Authorized Signature</div>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); }, 300);
+  };
+
+  const savePO = (downloadPdf = false) => {
+    if (poDraft.length === 0) return;
+    const poNumber = `#PO-${Date.now().toString().slice(-6)}`;
+    const dateStr = new Date().toLocaleString();
+
+    const newPO = {
+      poId: poNumber,
+      date: dateStr,
+      items: [...poDraft],
+      status: 'Pending'
+    };
+
+    setPoHistory(prev => [newPO, ...prev]);
+
+    if (downloadPdf) {
+      generatePDF(newPO);
+    }
+
+    setPoDraft([]);
+    setPoTab('history');
+  };
+
+  const editPendingPO = (po) => {
+    setPoDraft(po.items);
+    setPoHistory(prev => prev.filter(p => p.poId !== po.poId));
+    setPoTab('create');
+  };
+
+  const deletePendingPO = (poId) => {
+    if(window.confirm("Are you sure you want to delete this Pending Purchase Order?")) {
+       setPoHistory(prev => prev.filter(p => p.poId !== poId));
+    }
+  };
+
+  const openReceivePOModal = (po) => {
+    const poWithRecQty = {
+      ...po,
+      items: po.items.map(item => ({ 
+        ...item, 
+        receivedQty: item.receivedQty !== undefined ? item.receivedQty : item.orderQty 
+      }))
+    };
+    setReceivingPO(poWithRecQty);
+  };
+
+  const handleReceivingQtyChange = (itemId, val) => {
+    setReceivingPO(prev => ({
+      ...prev,
+      items: prev.items.map(item => {
+        if (item.id === itemId) {
+          let newQty = parseInt(val);
+          if (isNaN(newQty)) newQty = 0;
+          return { ...item, receivedQty: newQty };
+        }
+        return item;
+      })
+    }));
+  };
+
+  const confirmReceivePO = (e) => {
+    e.preventDefault();
+    if (!receivingPO) return;
+
+    const oldPO = poHistory.find(p => p.poId === receivingPO.poId);
+    const wasCompleted = oldPO && oldPO.status === 'Completed';
+
+    setInventory(prevInv => prevInv.map(invItem => {
+      const newReceivedItem = receivingPO.items.find(i => i.id === invItem.id);
+      const oldReceivedItem = wasCompleted ? oldPO.items.find(i => i.id === invItem.id) : null;
+
+      let stockAdjustment = 0;
+      let newPrice = invItem.price;
+
+      if (newReceivedItem) {
+        if (wasCompleted) {
+           const oldQty = oldReceivedItem ? (oldReceivedItem.receivedQty || 0) : 0;
+           const newQty = newReceivedItem.receivedQty || 0;
+           stockAdjustment = newQty - oldQty;
+        } else {
+           stockAdjustment = newReceivedItem.receivedQty || 0;
+        }
+
+        if (newReceivedItem.receivedQty > 0 && newReceivedItem.price !== undefined && !isNaN(newReceivedItem.price)) {
+            newPrice = Number(newReceivedItem.price);
+        }
+      }
+
+      if (stockAdjustment !== 0 || newPrice !== invItem.price) {
+        return { 
+            ...invItem, 
+            quantity: invItem.quantity + stockAdjustment,
+            price: newPrice
+        };
+      }
+      return invItem;
+    }));
+
+    setPoHistory(prev => prev.map(po => {
+      if (po.poId === receivingPO.poId) {
+        return { 
+          ...receivingPO, 
+          status: 'Completed', 
+          completionDate: receivingPO.completionDate || new Date().toLocaleString() 
+        };
+      }
+      return po;
+    }));
+
+    setReceivingPO(null);
+    alert(wasCompleted 
+      ? `Purchase Order ${receivingPO.poId} corrections saved and inventory synced.`
+      : `Purchase Order ${receivingPO.poId} successfully received and inventory updated.`
+    );
+  };
+
+  // --- EDIT RECORD HANDLERS ---
+  const openEditRecordModal = (record) => {
+    const d = new Date(record.timestamp);
+    let editTimestamp = "";
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      editTimestamp = `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+    setEditingRecord({ ...record, editTimestamp });
+  };
+
+  const handleEditRecordQty = (itemId, delta) => {
+    setEditingRecord(prev => {
+      const updatedItems = prev.items.map(item => {
+        if (item.id === itemId) {
+          const currentQty = parseInt(item.dispenseQty) || 0;
+          const newQty = Math.max(1, currentQty + delta); 
+          return { ...item, dispenseQty: newQty };
+        }
+        return item;
+      });
+      const newTotal = updatedItems.reduce((sum, i) => sum + (i.price * i.dispenseQty), 0);
+      return { ...prev, items: updatedItems, totalAmount: newTotal };
+    });
+  };
+
+  const handleRemoveItemFromRecord = (itemId) => {
+    setEditingRecord(prev => {
+      const updatedItems = prev.items.filter(item => item.id !== itemId);
+      const newTotal = updatedItems.reduce((sum, i) => sum + (i.price * i.dispenseQty), 0);
+      return { ...prev, items: updatedItems, totalAmount: newTotal };
+    });
+  };
+
+  const handleAddItemToRecord = (e) => {
+    const productId = e.target.value;
+    if (!productId) return;
+    
+    const productToAdd = inventory.find(p => p.id === productId);
+    if (!productToAdd) return;
+
+    setEditingRecord(prev => {
+      if (prev.items.some(i => i.id === productId)) return prev; 
+      
+      const newItem = { ...productToAdd, dispenseQty: 1 };
+      const updatedItems = [...prev.items, newItem];
+      const newTotal = updatedItems.reduce((sum, i) => sum + (i.price * i.dispenseQty), 0);
+      
+      return { ...prev, items: updatedItems, totalAmount: newTotal };
+    });
+  };
+
+  const saveRecordEdits = () => {
+    if (editingRecord.items.length === 0) {
+       alert("A record cannot have 0 items. Delete the record instead if needed.");
+       return;
+    }
+
+    const oldRecord = historyRecords.find(r => r.recordId === editingRecord.recordId);
+    
+    setInventory(prev => prev.map(stockItem => {
+      const oldItem = oldRecord.items.find(i => i.id === stockItem.id);
+      const newItem = editingRecord.items.find(i => i.id === stockItem.id);
+      
+      let stockAdjustment = 0;
+      if (oldItem) stockAdjustment += oldItem.dispenseQty; 
+      if (newItem) stockAdjustment -= newItem.dispenseQty; 
+      
+      return { ...stockItem, quantity: stockItem.quantity + stockAdjustment };
+    }));
+
+    const updatedTimestamp = new Date(editingRecord.editTimestamp).toLocaleString();
+
+    setHistoryRecords(prev => prev.map(r => 
+      r.recordId === editingRecord.recordId ? { 
+        ...editingRecord, 
+        timestamp: updatedTimestamp !== 'Invalid Date' ? updatedTimestamp : editingRecord.timestamp
+      } : r
+    ));
+
+    setEditingRecord(null);
+    alert("Record updated and inventory adjusted successfully.");
+  };
+
+  const confirmDelete = () => {
+    if (itemToDelete) {
+      setInventory(prev => prev.filter(item => item.id !== itemToDelete.id));
+      setCart(prev => prev.filter(item => item.id !== itemToDelete.id));
+      setItemToDelete(null);
+    }
+  };
+
+  const confirmDeleteRecord = () => {
+    if (recordToDelete) {
+      setInventory(prev => prev.map(stockItem => {
+        const dispensedItem = recordToDelete.items.find(i => i.id === stockItem.id);
+        if (dispensedItem) {
+          return { ...stockItem, quantity: stockItem.quantity + dispensedItem.dispenseQty };
+        }
+        return stockItem;
+      }));
+      setHistoryRecords(prev => prev.filter(r => r.recordId !== recordToDelete.recordId));
+      setRecordToDelete(null);
+    }
+  };
+
+  const handleEditClick = (item) => {
+    setEditingProduct(item);
+    setEditForm({ ...item });
+  };
+
+  const handleUpdateProduct = (e) => {
+    e.preventDefault();
+    setInventory(prev => prev.map(item => 
+      item.id === editForm.id 
+        ? { ...editForm, quantity: parseInt(editForm.quantity), price: parseFloat(editForm.price), threshold: parseInt(editForm.threshold) } 
+        : item
+    ));
+    setCart(prev => prev.map(item => 
+      item.id === editForm.id ? { ...item, name: editForm.name, category: editForm.category, unit: editForm.unit, price: parseFloat(editForm.price) } : item
+    ));
+    setEditingProduct(null);
+    setEditForm(null);
+  };
+
+  // --- CATEGORY MANAGEMENT ACTIONS ---
+  const openAddCategoryModal = () => {
+    setCategoryModalMode('add');
+    setCategoryForm({ oldName: '', name: '', icon: 'Pill' });
+    setIsCategoryModalOpen(true);
+  };
+
+  const openEditCategoryModal = (catName, iconName) => {
+    setCategoryModalMode('edit');
+    setCategoryForm({ oldName: catName, name: catName, icon: iconName });
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleSaveCategory = (e) => {
+    e.preventDefault();
+    const { oldName, name, icon } = categoryForm;
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    if (categoryModalMode === 'add') {
+        if (categoryMap[trimmedName]) { alert("Category name already exists!"); return; }
+        setCategoryMap(prev => ({ ...prev, [trimmedName]: icon }));
+    } else {
+        if (oldName !== trimmedName && categoryMap[trimmedName]) { alert("Category name already exists!"); return; }
+        
+        setCategoryMap(prev => {
+            const newMap = { ...prev };
+            if (oldName !== trimmedName) delete newMap[oldName];
+            newMap[trimmedName] = icon;
+            return newMap;
+        });
+
+        // Sync inventory and records if renamed
+        if (oldName !== trimmedName) {
+            setInventory(prev => prev.map(item => item.category === oldName ? { ...item, category: trimmedName } : item));
+            setHistoryRecords(prev => prev.map(record => ({
+                ...record,
+                items: record.items.map(item => item.category === oldName ? { ...item, category: trimmedName } : item)
+            })));
+            setHiddenCategories(prev => prev.map(c => c === oldName ? trimmedName : c));
+        }
+    }
+    setIsCategoryModalOpen(false);
+  };
+
+  const confirmDeleteCategory = () => {
+    if (categoryToDelete) {
+        setCategoryMap(prev => {
+            const newMap = { ...prev };
+            delete newMap[categoryToDelete];
+            if (!newMap['Others']) newMap['Others'] = 'Archive'; // Ensure fallback
+            return newMap;
+        });
+        
+        setInventory(prev => prev.map(item => item.category === categoryToDelete ? { ...item, category: 'Others' } : item));
+        setHistoryRecords(prev => prev.map(record => ({
+            ...record,
+            items: record.items.map(item => item.category === categoryToDelete ? { ...item, category: 'Others' } : item)
+        })));
+        
+        if (categoryFilter === categoryToDelete) setCategoryFilter('All');
+        setHiddenCategories(prev => prev.filter(c => c !== categoryToDelete));
+        setCategoryToDelete(null);
+    }
+  };
+
+  const toggleCategoryVisibility = (catName) => {
+    setHiddenCategories(prev => {
+        if (prev.includes(catName)) {
+            return prev.filter(c => c !== catName);
+        } else {
+            if (categoryFilter === catName) setCategoryFilter('All');
+            return [...prev, catName];
+        }
+    });
+  };
+
+  // --- IMPORT / EXPORT DATA CSV UTILS ---
+  const escapeCSV = (str) => `"${String(str).replace(/"/g, '""')}"`;
+  
+  const triggerDownload = (content, filename) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const parseCSVRow = (str) => {
+      const result = [];
+      let inQuotes = false;
+      let current = '';
+      for (let i = 0; i < str.length; i++) {
+          const char = str[i];
+          if (char === '"' && str[i+1] === '"') {
+              current += '"';
+              i++; 
+          } else if (char === '"') {
+              inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+              result.push(current);
+              current = '';
+          } else {
+              current += char;
+          }
+      }
+      result.push(current);
+      return result.map(s => s.trim());
+  };
+
+  const downloadTemplate = () => {
+    const headers = ['Name', 'Category', 'Unit', 'Price', 'Quantity', 'Threshold'];
+    const csvContent = headers.join(',') + '\n"Amoxicillin 500mg","Antibiotics","Capsules","50.00","500","100"\n"Panadol","Pain Relievers","Tablets","5.00","200","50"';
+    triggerDownload(csvContent, 'MNHC_Inventory_Template.csv');
+  };
+
+  const exportInventory = () => {
+    const headers = ['ID', 'Name', 'Category', 'Unit', 'Price', 'Quantity', 'Threshold'];
+    const rows = inventory.map(item => [
+      escapeCSV(item.id), escapeCSV(item.name), escapeCSV(item.category), 
+      escapeCSV(item.unit), item.price, item.quantity, item.threshold
+    ].join(','));
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    triggerDownload(csvContent, `MNHC_Inventory_Backup_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const fileInputRef = useRef(null);
+
+  const importInventory = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target.result;
+      const lines = text.split(/\r?\n/).filter(line => line.trim());
+      
+      if(lines.length <= 1) {
+          alert("File is empty or missing data rows.");
+          return;
+      }
+      
+      const headers = parseCSVRow(lines[0]).map(h => h.toLowerCase().trim());
+      const newItems = [];
+      let importedCount = 0;
+      let mergedCount = 0;
+      
+      const idIdx = headers.indexOf('id');
+      const nameIdx = headers.indexOf('name');
+      const catIdx = headers.indexOf('category');
+      const unitIdx = headers.indexOf('unit');
+      const priceIdx = headers.indexOf('price');
+      const qtyIdx = headers.indexOf('quantity');
+      const threshIdx = headers.indexOf('threshold');
+
+      if (nameIdx === -1) {
+          alert("Invalid file format. 'Name' column is required.");
+          return;
+      }
+
+      for(let i=1; i<lines.length; i++) {
+        const row = parseCSVRow(lines[i]);
+        if (row.length < headers.length && row.length <= 1) continue; 
+
+        const name = row[nameIdx] || '';
+        if (!name) continue; 
+
+        let id = idIdx > -1 ? row[idIdx] : '';
+        const category = catIdx > -1 && row[catIdx] ? row[catIdx] : 'Others';
+        const unit = unitIdx > -1 && row[unitIdx] ? row[unitIdx] : 'Tablets';
+        const price = priceIdx > -1 ? parseFloat(row[priceIdx]) || 0 : 0;
+        const quantity = qtyIdx > -1 ? parseInt(row[qtyIdx]) || 0 : 0;
+        const threshold = threshIdx > -1 ? parseInt(row[threshIdx]) || 50 : 50;
+
+        if(!id) id = `#MED${Math.floor(1000 + Math.random() * 9000)}`;
+
+        newItems.push({ id, name, category, unit, price, quantity, threshold });
+      }
+
+      if(newItems.length > 0) {
+         setInventory(prev => {
+            const updated = [...prev];
+            newItems.forEach(newItem => {
+               const existingIdx = updated.findIndex(i => 
+                   (newItem.id && !newItem.id.startsWith('#MED') && i.id === newItem.id) || 
+                   i.name.toLowerCase() === newItem.name.toLowerCase()
+               );
+               
+               if (existingIdx > -1) {
+                   updated[existingIdx] = { 
+                       ...updated[existingIdx], 
+                       category: newItem.category,
+                       unit: newItem.unit,
+                       price: newItem.price,
+                       quantity: newItem.quantity,
+                       threshold: newItem.threshold
+                   };
+                   mergedCount++;
+               } else {
+                   updated.push(newItem);
+                   importedCount++;
+               }
+            });
+            return updated;
+         });
+         
+         const categoriesToEnsure = [...new Set(newItems.map(i => i.category))];
+         setCategoryMap(prev => {
+             const newMap = { ...prev };
+             let changed = false;
+             categoriesToEnsure.forEach(cat => {
+                 if (!newMap[cat]) {
+                     newMap[cat] = 'Package'; 
+                     changed = true;
+                 }
+             });
+             return changed ? newMap : prev;
+         });
+
+         alert(`Success! File processed.\nAdded new items: ${importedCount}\nUpdated existing items: ${mergedCount}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null; 
+  };
+
+
+  // --- UI COMPONENTS ---
+  const Sidebar = () => (
+    <div className={`bg-slate-900 text-slate-300 flex flex-col min-h-screen transition-all duration-300 z-20 relative shrink-0 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+      
+      {/* Toggle Button */}
+      <button 
+        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        className="absolute -right-3 top-8 bg-[#08834c] text-white p-1.5 rounded-full shadow-md hover:bg-[#076c3e] transition-colors z-50 border-2 border-white"
+        title={isSidebarCollapsed ? "Expand Menu" : "Collapse Menu"}
+      >
+        {isSidebarCollapsed ? <ChevronRight size={14} strokeWidth={3} /> : <ChevronLeft size={14} strokeWidth={3} />}
+      </button>
+
+      <div className="p-4 flex justify-center items-center border-b border-slate-800/50 mb-2 h-24 overflow-hidden">
+        {!isSidebarCollapsed ? (
+          <img 
+            src="logo.png" 
+            alt="Maryam Nawaz Health Clinic" 
+            className="w-full h-full object-contain drop-shadow-md animate-in fade-in"
+            onError={(e) => {
+              e.target.onerror = null; 
+              e.target.src = "https://placehold.co/400x120/0f172a/ffffff?text=MNHC+Logo";
+            }}
+          />
+        ) : (
+          <div className="w-10 h-10 bg-[#08834c] text-white font-bold rounded-xl flex justify-center items-center text-lg animate-in zoom-in shadow-md">
+            M
+          </div>
+        )}
+      </div>
+      
+      <nav className="flex-1 px-3 space-y-2 mt-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
+        {[
+          { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+          { id: 'dispense', icon: Pill, label: 'Dispense' },
+          { id: 'purchase', icon: ClipboardList, label: 'Purchase Order' },
+          { id: 'inventory', icon: PackageSearch, label: 'Inventory / Stock' },
+          { id: 'data', icon: Database, label: 'Data Management' },
+        ].map(nav => {
+          const Icon = nav.icon;
+          return (
+            <button
+              key={nav.id}
+              onClick={() => setActiveTab(nav.id)}
+              title={isSidebarCollapsed ? nav.label : ''}
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-start px-4'} py-3 rounded-xl transition-all duration-200 ${activeTab === nav.id ? 'bg-[#08834c] text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            >
+              <Icon size={22} className="shrink-0" />
+              {!isSidebarCollapsed && <span className="font-medium ml-3 truncate">{nav.label}</span>}
+            </button>
+          );
+        })}
+      </nav>
+      
+      <div className="p-3 border-t border-slate-800">
+        <button 
+          onClick={() => setActiveTab('settings')} 
+          title={isSidebarCollapsed ? 'Settings' : ''}
+          className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-start px-4'} py-3 rounded-xl transition-all duration-200 ${activeTab === 'settings' ? 'bg-[#08834c] text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+        >
+          <Settings size={22} className="shrink-0" />
+          {!isSidebarCollapsed && <span className="font-medium ml-3 truncate">Settings</span>}
+        </button>
+      </div>
+    </div>
+  );
+
+  const DataManagementView = () => (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-800">Data Management</h2>
+        <p className="text-sm text-slate-500 mt-1">Import or export your inventory data securely via CSV files.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* Export Backup Card */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center h-full">
+           <div className="w-16 h-16 bg-[#edf6f1] text-[#08834c] rounded-full flex items-center justify-center mb-4">
+              <Download size={32} />
+           </div>
+           <h3 className="font-bold text-lg text-slate-800 mb-2">Export Data Backup</h3>
+           <p className="text-sm text-slate-500 mb-6 flex-1">Download a full snapshot of your current inventory data in CSV format, ready to be viewed in Excel.</p>
+           <button onClick={exportInventory} className="w-full py-3 bg-[#08834c] text-white font-bold rounded-xl shadow-md hover:bg-[#076c3e] transition-colors flex items-center justify-center gap-2">
+             Export Backup (CSV)
+           </button>
+        </div>
+
+        {/* Import CSV Card */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center h-full">
+           <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
+              <Upload size={32} />
+           </div>
+           <h3 className="font-bold text-lg text-slate-800 mb-2">Import Inventory</h3>
+           <p className="text-sm text-slate-500 mb-6 flex-1">Upload an Excel (CSV) file to bulk-add new items or update existing stock quantities matching by name.</p>
+           
+           <input 
+             type="file" 
+             accept=".csv" 
+             onChange={importInventory} 
+             ref={fileInputRef} 
+             className="hidden" 
+           />
+           <button onClick={() => fileInputRef.current?.click()} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+             Upload CSV File
+           </button>
+        </div>
+
+        {/* Download Template Card */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center h-full">
+           <div className="w-16 h-16 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-4">
+              <FileSpreadsheet size={32} />
+           </div>
+           <h3 className="font-bold text-lg text-slate-800 mb-2">Excel Template</h3>
+           <p className="text-sm text-slate-500 mb-6 flex-1">Download a blank CSV template with the correct column formatting to ensure a flawless import process.</p>
+           <button onClick={downloadTemplate} className="w-full py-3 bg-white border border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+             Download Template
+           </button>
+        </div>
+
+      </div>
+    </div>
+  );
+
+  const SettingsView = () => (
+    <div className="space-y-6 animate-in fade-in duration-300 pb-12">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-800">System Settings</h2>
+        <p className="text-sm text-slate-500">Configure your analytics boundaries and data structures</p>
+      </div>
+      
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 max-w-2xl">
+         <h3 className="font-bold text-lg text-slate-800 mb-6">Analytics Reporting Periods</h3>
+         
+         <div className="space-y-6">
+           <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">First Day of the Week</label>
+              <select 
+                value={settings.weekStartDay} 
+                onChange={(e) => setSettings({...settings, weekStartDay: parseInt(e.target.value)})}
+                className="w-full sm:w-64 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none cursor-pointer text-slate-700"
+              >
+                <option value={0}>Sunday</option>
+                <option value={1}>Monday</option>
+                <option value={2}>Tuesday</option>
+                <option value={3}>Wednesday</option>
+                <option value={4}>Thursday</option>
+                <option value={5}>Friday</option>
+                <option value={6}>Saturday</option>
+              </select>
+              <p className="text-xs text-slate-500 mt-2">Used to correctly calculate "This Week" in dashboard charts based on your clinic's working week.</p>
+           </div>
+
+           <div className="w-full h-px bg-slate-100"></div>
+
+           <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Start Date of the Month</label>
+              <select 
+                value={settings.monthStartDate} 
+                onChange={(e) => setSettings({...settings, monthStartDate: parseInt(e.target.value)})}
+                className="w-full sm:w-64 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none cursor-pointer text-slate-700"
+              >
+                {Array.from({length: 28}, (_, i) => i + 1).map(day => (
+                  <option key={day} value={day}>{day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'} of the month</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500 mt-2">Used to calculate "This Month" intervals for revenue and stock sold (Select between 1st-28th).</p>
+           </div>
+         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 max-w-2xl">
+         <div className="flex justify-between items-center mb-6">
+            <h3 className="font-bold text-lg text-slate-800">Therapeutic Categories</h3>
+            <button onClick={openAddCategoryModal} className="text-sm bg-[#edf6f1] text-[#08834c] px-4 py-2 rounded-xl font-medium hover:bg-[#d3ebd9] transition-colors flex items-center gap-1 shadow-sm">
+               <Plus size={16}/> Add Category
+            </button>
+         </div>
+         <div className="space-y-3">
+            {Object.entries(categoryMap).map(([catName, iconName]) => {
+                const Icon = AVAILABLE_ICONS[iconName] || Package;
+                const isHidden = hiddenCategories.includes(catName);
+                return (
+                    <div key={catName} className={`flex justify-between items-center p-3 border rounded-xl transition-colors ${isHidden ? 'bg-slate-50/50 border-slate-50' : 'bg-slate-50 border-slate-100 hover:border-[#acdabb]'}`}>
+                        <div className="flex items-center gap-4">
+                            <div className={`p-2.5 rounded-lg shadow-sm ${isHidden ? 'bg-slate-200 text-slate-400' : 'bg-white text-[#08834c]'}`}><Icon size={20}/></div>
+                            <span className={`font-bold ${isHidden ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{catName}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => toggleCategoryVisibility(catName)} className={`p-2 rounded-lg transition-colors ${isHidden ? 'text-slate-400 bg-slate-200 hover:text-slate-600' : 'text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1]'}`} title={isHidden ? "Unhide Category" : "Hide Category"}>
+                                {isHidden ? <EyeOff size={18}/> : <Eye size={18}/>}
+                            </button>
+                            <button onClick={() => openEditCategoryModal(catName, iconName)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Pencil size={18}/></button>
+                            <button onClick={() => setCategoryToDelete(catName)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                        </div>
+                    </div>
+                );
+            })}
+         </div>
+      </div>
+    </div>
+  );
+
+  const DashboardView = () => {
+    const [salesTimeframe, setSalesTimeframe] = useState('daily');
+    const [salesMetric, setSalesMetric] = useState('value'); // Toggle: 'value' | 'items' | 'units'
+    const [topMedTimeframe, setTopMedTimeframe] = useState('monthly');
+    const [valueTimeframe, setValueTimeframe] = useState('today');
+
+    const now = new Date();
+    const todayStr = now.toLocaleDateString();
+    
+    const currentWeekStart = getCustomWeekStart(now, settings.weekStartDay);
+    const currentMonthStart = getCustomMonthStart(now, settings.monthStartDate);
+    
+    // DYNAMIC TOTAL VALUE CARD
+    const dynamicRevenue = useMemo(() => {
+      return historyRecords.reduce((sum, r) => {
+        const d = new Date(r.timestamp);
+        if (isNaN(d.getTime())) return sum;
+        
+        let include = false;
+        if (valueTimeframe === 'today') include = d.toLocaleDateString() === todayStr;
+        else if (valueTimeframe === 'weekly') include = d >= currentWeekStart;
+        else if (valueTimeframe === 'monthly') include = d >= currentMonthStart;
+        else if (valueTimeframe === 'all') include = true;
+
+        return include ? sum + r.totalAmount : sum;
+      }, 0);
+    }, [historyRecords, valueTimeframe, todayStr, currentWeekStart, currentMonthStart]);
+
+    // ITEMS & UNITS DISPENSED TODAY
+    const todaysStats = useMemo(() => {
+      let items = 0;
+      let units = 0;
+      historyRecords.forEach(r => {
+        const d = new Date(r.timestamp);
+        if (!isNaN(d.getTime()) && d.toLocaleDateString() === todayStr) {
+           items += r.items.length;
+           units += r.items.reduce((sum, i) => sum + (parseInt(i.dispenseQty) || 0), 0);
+        }
+      });
+      return { items, units };
+    }, [historyRecords, todayStr]);
+
+    // DYNAMIC SALES GRAPH
+    const salesChartData = useMemo(() => {
+      let labels = [];
+      let data = [];
+
+      const getMetricValue = (r) => {
+        if (salesMetric === 'value') return r.totalAmount;
+        if (salesMetric === 'items') return r.items.length; // Count distinct items
+        if (salesMetric === 'units') return r.items.reduce((sum, item) => sum + (parseInt(item.dispenseQty) || 0), 0); // Count total physical units
+        return 0;
+      };
+
+      if (salesTimeframe === 'daily') {
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+          const dayStart = new Date(d.setHours(0,0,0,0));
+          const dayEnd = new Date(d.setHours(23,59,59,999));
+          const dayTotal = historyRecords.filter(r => {
+             const rDate = new Date(r.timestamp);
+             return rDate >= dayStart && rDate <= dayEnd;
+          }).reduce((sum, r) => sum + getMetricValue(r), 0);
+          data.push(dayTotal);
+        }
+      } else if (salesTimeframe === 'monthly') {
+        for (let i = 5; i >= 0; i--) {
+          const monthStart = new Date(currentMonthStart);
+          monthStart.setMonth(monthStart.getMonth() - i);
+          labels.push(monthStart.toLocaleDateString('en-US', { month: 'short' }));
+          
+          const monthEnd = new Date(monthStart);
+          monthEnd.setMonth(monthEnd.getMonth() + 1);
+          monthEnd.setDate(monthEnd.getDate() - 1);
+          monthEnd.setHours(23,59,59,999);
+
+          const monthTotal = historyRecords.filter(r => {
+             const rDate = new Date(r.timestamp);
+             return rDate >= monthStart && rDate <= monthEnd;
+          }).reduce((sum, r) => sum + getMetricValue(r), 0);
+          data.push(monthTotal);
+        }
+      } else if (salesTimeframe === 'weekly') {
+        for (let i = 3; i >= 0; i--) {
+           labels.push(`W-${i}`);
+           const weekStart = new Date(currentWeekStart);
+           weekStart.setDate(weekStart.getDate() - (i * 7));
+           const weekEnd = new Date(weekStart);
+           weekEnd.setDate(weekEnd.getDate() + 6);
+           weekEnd.setHours(23,59,59,999);
+
+           const weekTotal = historyRecords.filter(r => {
+             const rDate = new Date(r.timestamp);
+             return rDate >= weekStart && rDate <= weekEnd;
+          }).reduce((sum, r) => sum + getMetricValue(r), 0);
+          data.push(weekTotal);
+        }
+      }
+      const maxData = Math.max(...data, 10); 
+      return { labels, data, maxData };
+    }, [historyRecords, salesTimeframe, salesMetric, currentWeekStart, currentMonthStart]);
+
+    // DYNAMIC TOP MEDICINES
+    const topMedicines = useMemo(() => {
+      const filteredRecords = historyRecords.filter(r => {
+         const rDate = new Date(r.timestamp);
+         if (topMedTimeframe === 'monthly') return rDate >= currentMonthStart;
+         if (topMedTimeframe === 'weekly') return rDate >= currentWeekStart;
+         return true;
+      });
+
+      const counts = {};
+      filteredRecords.forEach(record => {
+          record.items.forEach(item => {
+              if (!counts[item.id]) counts[item.id] = { name: item.name, qty: 0, revenue: 0 };
+              counts[item.id].qty += parseInt(item.dispenseQty) || 0; // Sum physical units dispensed
+              counts[item.id].revenue += (item.dispenseQty * item.price);
+          });
+      });
+      const sorted = Object.values(counts).sort((a, b) => b.qty - a.qty).slice(0, 3);
+      const colors = ['bg-[#f97316]', 'bg-slate-900', 'bg-[#a3e635]'];
+      return sorted.map((item, idx) => ({ ...item, color: colors[idx % colors.length] }));
+    }, [historyRecords, topMedTimeframe, currentWeekStart, currentMonthStart]);
+
+    const displayMedicines = topMedicines.length > 0 ? topMedicines : [
+        { name: 'No data', qty: 0, revenue: 0, color: 'bg-[#f97316]' },
+        { name: 'No data', qty: 0, revenue: 0, color: 'bg-slate-900' },
+        { name: 'No data', qty: 0, revenue: 0, color: 'bg-[#a3e635]' }
+    ];
+    const maxQty = Math.max(...displayMedicines.map(m => m.qty), 10);
+
+    // DYNAMIC TOP CATEGORIES (By Revenue, Items, and Units)
+    const topCategoriesData = useMemo(() => {
+      const counts = {};
+      historyRecords.forEach(record => {
+          record.items.forEach(item => {
+              if (!counts[item.category]) counts[item.category] = { revenue: 0, items: 0, units: 0 };
+              counts[item.category].revenue += (item.dispenseQty * item.price);
+              counts[item.category].items += 1; // 1 distinct line item
+              counts[item.category].units += (parseInt(item.dispenseQty) || 0); // exact physical volume
+          });
+      });
+      const sorted = Object.entries(counts)
+        .sort((a, b) => b[1].revenue - a[1].revenue)
+        .slice(0, 6)
+        .map(([name, data]) => ({ name, ...data }));
+      const maxRev = Math.max(...sorted.map(c => c.revenue), 10);
+      return { categories: sorted, maxRev };
+    }, [historyRecords]);
+
+    return (
+      <div className="animate-in fade-in duration-300 space-y-6 pb-12">
+        
+        {/* ROW 1: Key Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500 font-medium mb-1">Dispensed Today</p>
+              <div className="flex items-end gap-3 mt-1">
+                <div><span className="text-3xl font-bold text-slate-800">{todaysStats.items}</span> <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Items</span></div>
+                <div className="w-px h-6 bg-slate-200 mb-1"></div>
+                <div><span className="text-3xl font-bold text-slate-800">{todaysStats.units}</span> <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Units</span></div>
+              </div>
+            </div>
+            <div className="bg-[#edf6f1] p-4 rounded-xl text-[#08834c]"><Pill size={28} /></div>
+          </div>
+          
+          <div className="bg-slate-900 p-6 rounded-2xl shadow-sm flex items-center justify-between text-white relative">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <p className="text-sm text-slate-300 font-medium">Total Dispensed Value</p>
+                <select 
+                  value={valueTimeframe}
+                  onChange={(e) => setValueTimeframe(e.target.value)}
+                  className="bg-slate-800 border-none text-xs text-slate-300 py-1 px-2 rounded-lg outline-none cursor-pointer focus:ring-1 focus:ring-slate-600 appearance-none"
+                >
+                  <option value="today">Today</option>
+                  <option value="weekly">This Week</option>
+                  <option value="monthly">This Month</option>
+                  <option value="all">All Time</option>
+                </select>
+              </div>
+              <h2 className="text-3xl font-bold text-white">Rs. {dynamicRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
+            </div>
+            <div className="bg-white/10 p-4 rounded-xl text-[#a3e635]"><Banknote size={28} /></div>
+          </div>
+        </div>
+
+        {/* ROW 2: Primary Graphs */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Sales Analytics Chart */}
+          <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-96">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-4">
+              <div>
+                <h3 className="font-bold text-lg text-slate-800">Dispensing Analytics</h3>
+                <p className="text-xs text-slate-500">Overview of your dispensing trends</p>
+              </div>
+              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full xl:w-auto">
+                 <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto custom-scrollbar">
+                    <button onClick={() => setSalesMetric('items')} className={`whitespace-nowrap flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all ${salesMetric === 'items' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500 hover:text-slate-700'}`}>Items Dispensed</button>
+                    <button onClick={() => setSalesMetric('units')} className={`whitespace-nowrap flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all ${salesMetric === 'units' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500 hover:text-slate-700'}`}>Units Dispensed</button>
+                    <button onClick={() => setSalesMetric('value')} className={`whitespace-nowrap flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all ${salesMetric === 'value' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500 hover:text-slate-700'}`}>Value Dispensed</button>
+                 </div>
+                <select 
+                  value={salesTimeframe} 
+                  onChange={(e) => setSalesTimeframe(e.target.value)}
+                  className="text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#08834c] text-slate-600 outline-none cursor-pointer w-full sm:w-auto"
+                >
+                  <option value="daily">Last 7 Days</option>
+                  <option value="weekly">Last 4 Weeks</option>
+                  <option value="monthly">Last 6 Months</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex-1 flex items-end justify-between gap-3 relative">
+              {/* Background Grid Lines */}
+              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-8">
+                <div className="w-full h-px bg-slate-100"></div>
+                <div className="w-full h-px bg-slate-100"></div>
+                <div className="w-full h-px bg-slate-100"></div>
+                <div className="w-full h-px bg-slate-100"></div>
+              </div>
+
+              {salesChartData.data.map((value, idx) => (
+                <div key={idx} className="flex flex-col items-center w-full h-full justify-end group relative z-10 pb-8">
+                  <div className="absolute top-0 bg-slate-800 text-white text-xs font-medium py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-20">
+                    {salesMetric === 'value' ? `Rs. ${value.toLocaleString()}` : salesMetric === 'units' ? `${value.toLocaleString()} units` : `${value.toLocaleString()} items`}
+                  </div>
+                  <div className="w-full max-w-[3rem] bg-slate-50 rounded-t-full rounded-b-full flex items-end h-[calc(100%-1rem)]">
+                     <div 
+                        className="w-full bg-[#08834c] rounded-t-full rounded-b-full transition-all duration-700 ease-out group-hover:bg-[#065532]"
+                        style={{ height: `${Math.max((value / salesChartData.maxData) * 100, 4)}%` }}
+                     ></div>
+                  </div>
+                  <span className="absolute bottom-0 text-xs text-slate-400 font-medium">{salesChartData.labels[idx]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Top Selling Medicine */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-96">
+            <div className="flex flex-wrap justify-between items-center mb-6 gap-3">
+              <h3 className="font-bold text-lg text-slate-800 whitespace-nowrap">Top Dispensed</h3>
+              <select 
+                value={topMedTimeframe} 
+                onChange={(e) => setTopMedTimeframe(e.target.value)}
+                className="text-sm bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#08834c] text-slate-600 outline-none cursor-pointer flex-1 min-w-[110px] max-w-full"
+              >
+                <option value="monthly">This Month</option>
+                <option value="weekly">This Week</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
+            
+            <div className="flex-1 flex justify-around items-end gap-2 relative">
+              {displayMedicines.map((med, idx) => (
+                <div key={idx} className="flex flex-col items-center w-1/3 h-full justify-end group relative pb-10">
+                  <div className="absolute top-0 text-xs text-slate-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity z-20 whitespace-nowrap">
+                    {med.qty} units
+                  </div>
+                  <div className="w-full flex items-end justify-center h-full">
+                    <div 
+                      className={`w-full max-w-[3.5rem] ${med.color} rounded-t-full rounded-b-full relative flex justify-center items-end pb-3 transition-all duration-700 hover:-translate-y-1 shadow-sm`}
+                      style={{ height: `${Math.max((med.qty / maxQty) * 100, 25)}%` }}
+                    >
+                       <div className="bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm absolute bottom-2">
+                         <Pill size={14} className={idx === 0 ? "text-[#f97316]" : idx === 1 ? "text-slate-900" : "text-[#a3e635]"} />
+                       </div>
+                    </div>
+                  </div>
+                  <div className="absolute bottom-0 w-full text-center">
+                    <p className="text-xs font-bold text-slate-800 truncate px-1" title={med.name}>
+                      {med.name.split(' ')[0]}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">Rs. {med.revenue.toLocaleString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        {/* ROW 3: Top Categories */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+           <h3 className="font-bold text-lg text-slate-800 mb-6">Top Categories <span className="text-sm font-normal text-slate-400 ml-2">By Value, Items & Units</span></h3>
+           
+           {topCategoriesData.categories.length === 0 ? (
+             <div className="text-center py-12 text-slate-400">
+               <Package size={48} className="mx-auto mb-4 opacity-20" />
+               <p className="text-lg">No revenue data yet.</p>
+               <p className="text-sm mt-1">Dispense items to populate categories.</p>
+             </div>
+           ) : (
+             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-12 gap-y-8">
+               {topCategoriesData.categories.map((cat, idx) => {
+                  const iconName = categoryMap[cat.name] || 'Package';
+                  const Icon = AVAILABLE_ICONS[iconName] || Package;
+                  return (
+                   <div key={idx} className="group">
+                     <div className="flex justify-between items-end text-sm mb-1">
+                       <span className="font-medium text-slate-700 flex items-center gap-2"><Icon size={16} className="text-slate-400 group-hover:text-[#08834c] transition-colors"/> {cat.name}</span>
+                       <span className="font-bold text-slate-800">Rs. {cat.revenue.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                     </div>
+                     <div className="flex justify-between text-xs text-slate-500 mb-2">
+                       <span className="ml-6">{cat.items} items / {cat.units} units</span>
+                     </div>
+                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                       <div className="bg-[#08834c] h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${Math.max((cat.revenue / topCategoriesData.maxRev) * 100, 2)}%` }}></div>
+                     </div>
+                   </div>
+                 )
+               })}
+             </div>
+           )}
+        </div>
+      </div>
+    );
+  };
+
+  const DispenseView = () => {
+    const cartTotal = cart.reduce((sum, item) => {
+      const qty = item.dispenseQty === '' ? 0 : parseInt(item.dispenseQty);
+      return sum + (item.price * qty);
+    }, 0);
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300 pb-12">
+        {/* Header */}
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Dispense & Records</h2>
+          <p className="text-sm text-slate-500 mt-1">Dispense medications to patients and manage your billing history</p>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="flex gap-4 border-b border-slate-200">
+          <button onClick={() => setDispenseTab('create')} className={`pb-3 font-bold px-2 transition-colors ${dispenseTab === 'create' ? 'text-[#08834c] border-b-2 border-[#08834c]' : 'text-slate-500 hover:text-slate-800'}`}>New Dispense</button>
+          <button onClick={() => setDispenseTab('history')} className={`pb-3 font-bold px-2 transition-colors ${dispenseTab === 'history' ? 'text-[#08834c] border-b-2 border-[#08834c]' : 'text-slate-500 hover:text-slate-800'}`}>Dispensing History</button>
+        </div>
+
+        {dispenseTab === 'create' ? (
+          <div className="flex flex-col lg:flex-row gap-6 min-h-[500px] h-[calc(100vh-16rem)]">
+            <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+              <div className="p-5 border-b border-slate-100 bg-slate-50/50 shrink-0">
+                <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Pill className="text-[#08834c]" size={20} />Select Medication</h2>
+                <div className="relative">
+                  <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="text" placeholder="Search medication..." value={dispenseSearch} onChange={(e) => setDispenseSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#08834c] shadow-sm" />
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 grid grid-cols-1 xl:grid-cols-2 gap-4 auto-rows-max custom-scrollbar">
+                {dispenseFiltered.map(item => (
+                  <div key={item.id} onClick={() => addToCart(item)} className={`border ${item.quantity === 0 ? 'border-red-100 bg-red-50/30 opacity-60 cursor-not-allowed' : 'border-slate-100 hover:border-[#08834c] hover:shadow-md cursor-pointer'} p-4 rounded-xl transition-all flex justify-between items-center group`}>
+                    <div className="flex-1 min-w-0 pr-3">
+                      <h4 className="font-bold text-slate-800 truncate">{item.name}</h4>
+                      <p className="text-xs text-slate-500 truncate">{item.category}</p>
+                      <p className={`text-sm font-medium mt-1 ${item.quantity === 0 ? 'text-red-500' : 'text-slate-700'}`}>
+                        Stock: {item.quantity} {item.unit}
+                      </p>
+                    </div>
+                    <button className={`shrink-0 p-2 rounded-full ${item.quantity === 0 ? 'bg-red-100 text-red-500' : 'bg-[#edf6f1] text-[#08834c]'} transition-colors`}><Plus size={20} /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="w-full lg:w-[380px] xl:w-[450px] bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
+              <div className="p-5 border-b border-slate-100 bg-slate-900 text-white flex justify-between items-center shrink-0">
+                <h2 className="text-lg font-bold flex items-center gap-2"><Pill size={20}/> Dispensing Panel</h2>
+                <span className="bg-slate-800 px-3 py-1 rounded-full text-xs font-medium">{cart.length} items</span>
+              </div>
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar bg-slate-50/30">
+                {cart.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60 p-8 text-center"><ShoppingCart size={48} className="mb-4" /><p>Cart is empty.</p></div>
+                ) : (
+                  cart.map(item => (
+                    <div key={item.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative group">
+                      <button onClick={() => removeFromCart(item.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors bg-white rounded-md z-10" title="Remove from order">
+                        <XCircle size={18} />
+                      </button>
+                      <div className="pr-7 min-w-0">
+                        <h4 className="font-bold text-slate-800 text-sm truncate">{item.name}</h4>
+                        <p className="text-xs text-slate-500 mb-3 truncate">Rs. {item.price.toFixed(2)} / {item.unit}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between border-t border-slate-100 pt-3 gap-2">
+                        <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg p-1">
+                          <button onClick={() => updateCartQty(item.id, -1)} className="p-1 hover:bg-slate-100 rounded text-slate-600 transition-colors"><MinusCircle size={18} /></button>
+                          <input type="number" min="1" value={item.dispenseQty} onChange={(e) => handleQtyInputChange(item.id, e.target.value)} onBlur={() => handleQtyBlur(item.id)} className="font-bold text-slate-800 w-12 sm:w-16 text-center focus:outline-none bg-transparent" />
+                          <button onClick={() => updateCartQty(item.id, 1)} className="p-1 hover:bg-slate-100 rounded text-slate-600 transition-colors"><PlusCircle size={18} /></button>
+                        </div>
+                        <span className="font-bold text-slate-800">Rs. {(item.price * (item.dispenseQty === '' ? 0 : item.dispenseQty)).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="p-5 border-t border-slate-100 bg-white shrink-0">
+                <div className="flex justify-between items-center mb-4"><span className="text-slate-500">Total Amount</span><span className="text-2xl font-bold text-slate-800">Rs. {cartTotal.toFixed(2)}</span></div>
+                <button onClick={processDispensing} disabled={cart.length === 0} className={`w-full py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm ${cart.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-[#08834c] text-white hover:bg-[#076c3e] hover:shadow-md'}`}><CheckCircle2 size={20} />Dispense & Bill</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col min-h-[500px]">
+            <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+               <h3 className="font-bold text-lg text-slate-800">Order History</h3>
+               <div className="relative w-full sm:w-64">
+                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                 <input
+                   type="text"
+                   placeholder="Search by Record ID..."
+                   value={recordSearch}
+                   onChange={(e) => setRecordSearch(e.target.value)}
+                   className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#08834c] shadow-sm"
+                 />
+               </div>
+            </div>
+            
+            {filteredHistoryRecords.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-20 text-center text-slate-400">
+                <FileText size={48} className="mx-auto mb-4 opacity-20" />
+                <p className="text-lg">No matching dispensing records found.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 text-slate-500 text-sm border-b border-slate-100">
+                      <th className="p-4 font-medium">Record ID</th>
+                      <th className="p-4 font-medium">Date & Time</th>
+                      <th className="p-4 font-medium">Items & Units</th>
+                      <th className="p-4 font-medium">Total Billed</th>
+                      <th className="p-4 font-medium text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredHistoryRecords.map(record => (
+                      <tr key={record.recordId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                        <td className="p-4 text-sm font-bold text-slate-800">#{record.recordId.toString().slice(-6)}</td>
+                        <td className="p-4 text-sm text-slate-600 font-medium">
+                          <div className="flex items-center gap-2">
+                            <Clock size={14} className="text-slate-400" />
+                            {formatDisplayDate(record.timestamp)}
+                          </div>
+                        </td>
+                        <td className="p-4 text-sm text-slate-600">
+                          {record.items.length} items <span className="text-slate-400 text-xs ml-1">({record.items.reduce((s,i) => s + (parseInt(i.dispenseQty) || 0), 0)} units)</span>
+                        </td>
+                        <td className="p-4 font-bold text-[#08834c]">Rs. {record.totalAmount.toFixed(2)}</td>
+                        <td className="p-4 text-right flex items-center justify-end gap-2">
+                          <button onClick={() => setViewingRecord(record)} className="p-2 text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1] rounded-lg transition-colors" title="View Details"><Eye size={18} /></button>
+                          <button onClick={() => openEditRecordModal(record)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Record"><Pencil size={18} /></button>
+                          <button onClick={() => setRecordToDelete(record)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Record"><Trash2 size={18} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const PurchaseOrderView = () => {
+    const pendingOrdersCount = poHistory.filter(po => po.status === 'Pending').length;
+    const completedOrdersCount = poHistory.filter(po => po.status === 'Completed').length;
+
+    // Calculate total estimated value of the current draft
+    const poDraftTotal = poDraft.reduce((sum, item) => {
+      const qty = item.orderQty === '' ? 0 : parseInt(item.orderQty);
+      const price = item.price === '' || isNaN(item.price) ? 0 : parseFloat(item.price);
+      return sum + (price * qty);
+    }, 0);
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300 pb-12">
+        {/* Header & Stats */}
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Purchase Orders</h2>
+          <p className="text-sm text-slate-500 mt-1">Manage vendor orders and receive inventory stock</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+            <div><p className="text-sm text-slate-500 font-medium mb-1">Pending Orders</p><h2 className="text-3xl font-bold text-yellow-600">{pendingOrdersCount}</h2></div>
+            <div className="bg-yellow-50 p-4 rounded-xl text-yellow-600"><Clock size={28} /></div>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+            <div><p className="text-sm text-slate-500 font-medium mb-1">Completed Orders</p><h2 className="text-3xl font-bold text-[#08834c]">{completedOrdersCount}</h2></div>
+            <div className="bg-[#edf6f1] p-4 rounded-xl text-[#08834c]"><CheckCircle2 size={28} /></div>
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="flex gap-4 border-b border-slate-200">
+          <button onClick={() => setPoTab('create')} className={`pb-3 font-bold px-2 transition-colors ${poTab === 'create' ? 'text-[#08834c] border-b-2 border-[#08834c]' : 'text-slate-500 hover:text-slate-800'}`}>Create New Order</button>
+          <button onClick={() => setPoTab('history')} className={`pb-3 font-bold px-2 transition-colors ${poTab === 'history' ? 'text-[#08834c] border-b-2 border-[#08834c]' : 'text-slate-500 hover:text-slate-800'}`}>Order History</button>
+        </div>
+
+        {poTab === 'create' ? (
+          <div className="flex flex-col lg:flex-row gap-6 min-h-[500px] h-[calc(100vh-16rem)]">
+            {/* Left Pane - Inventory Selection */}
+            <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+              <div className="p-5 border-b border-slate-100 bg-slate-50/50 shrink-0">
+                <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
+                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 whitespace-nowrap">
+                    <ClipboardList className="text-[#08834c]" size={20} /> Select Items to Order
+                  </h2>
+                  <select 
+                    value={poFilter} 
+                    onChange={(e) => setPoFilter(e.target.value)}
+                    className="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#08834c] text-slate-600 outline-none cursor-pointer flex-1 min-w-[120px] max-w-full sm:max-w-[150px]"
+                  >
+                    <option value="all">All Items</option>
+                    <option value="low">Low Stock</option>
+                    <option value="out">Out of Stock</option>
+                  </select>
+                </div>
+                <div className="relative">
+                  <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="text" placeholder="Search inventory..." value={poSearch} onChange={(e) => setPoSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#08834c] shadow-sm" />
+                </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 grid grid-cols-1 xl:grid-cols-2 gap-4 auto-rows-max custom-scrollbar">
+                {poFilteredInventory.map(item => {
+                  const isOut = item.quantity === 0;
+                  const isLow = item.quantity > 0 && item.quantity <= item.threshold;
+                  const isDrafted = poDraft.some(p => p.id === item.id);
+                  
+                  return (
+                    <div key={item.id} onClick={() => !isDrafted && addToPO(item)} className={`border ${isDrafted ? 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed' : isOut ? 'border-red-200 bg-red-50/30 hover:border-red-300 cursor-pointer' : isLow ? 'border-yellow-200 bg-yellow-50/30 hover:border-yellow-300 cursor-pointer' : 'border-slate-100 hover:border-[#08834c] cursor-pointer bg-white'} p-4 rounded-xl transition-all flex justify-between items-center group shadow-sm hover:shadow-md`}>
+                      <div className="flex-1 min-w-0 pr-3">
+                        <h4 className="font-bold text-slate-800 truncate">{item.name}</h4>
+                        <p className="text-xs text-slate-500 truncate">{item.category}</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className={`text-sm font-medium ${isOut ? 'text-red-600' : isLow ? 'text-yellow-600' : 'text-green-600'}`}>
+                            Stock: {item.quantity} {item.unit}
+                          </span>
+                          <span className="text-xs text-slate-400">(Min: {item.threshold})</span>
+                        </div>
+                      </div>
+                      <button disabled={isDrafted} className={`shrink-0 p-2 rounded-full ${isDrafted ? 'bg-slate-200 text-slate-400' : 'bg-[#edf6f1] text-[#08834c]'} transition-colors`}>
+                        {isDrafted ? <CheckCircle2 size={20} /> : <Plus size={20} />}
+                      </button>
+                    </div>
+                  );
+                })}
+                {poFilteredInventory.length === 0 && (
+                  <div className="col-span-full py-12 text-center text-slate-400">
+                    <PackageSearch size={40} className="mx-auto mb-3 opacity-20" />
+                    <p>No items found matching the current filter.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Pane - Order Draft */}
+            <div className="w-full lg:w-[380px] xl:w-[450px] bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
+              <div className="p-5 border-b border-slate-100 bg-slate-900 text-white flex justify-between items-center shrink-0">
+                <h2 className="text-lg font-bold flex items-center gap-2"><PackagePlus size={20}/> Order Draft</h2>
+                <span className="bg-slate-800 px-3 py-1 rounded-full text-xs font-medium">{poDraft.length} items</span>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar bg-slate-50/30">
+                {poDraft.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60 p-8 text-center">
+                    <ClipboardList size={48} className="mb-4" />
+                    <p>Order draft is empty.<br/><span className="text-sm mt-1 block">Select items from the left to build your purchase order.</span></p>
+                  </div>
+                ) : (
+                  poDraft.map(item => (
+                    <div key={item.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative group">
+                      <button onClick={() => removeFromPO(item.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors bg-white rounded-md z-10" title="Remove from order">
+                        <XCircle size={18} />
+                      </button>
+                      <div className="pr-7 min-w-0">
+                        <h4 className="font-bold text-slate-800 text-sm truncate">{item.name}</h4>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 mb-3 mt-1">
+                          <span className="truncate bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-medium">
+                            Current Price: Rs. {(inventory.find(i => i.id === item.id)?.price || 0).toFixed(2)}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium text-slate-600">Est. Price: Rs.</span>
+                            <input 
+                              type="number" 
+                              step="0.01" 
+                              min="0" 
+                              value={item.price} 
+                              onChange={(e) => handlePOPriceChange(item.id, e.target.value)} 
+                              onBlur={() => handlePOQtyBlur(item.id)}
+                              className="w-16 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#08834c] text-slate-800 font-medium"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between border-t border-slate-100 pt-3 gap-2">
+                        <span className="text-sm font-medium text-slate-600">Order Qty:</span>
+                        <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg p-1">
+                          <button onClick={() => updatePOQty(item.id, -10)} className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Decrease by 10"><MinusCircle size={18} /></button>
+                          <input type="number" min="1" value={item.orderQty} onChange={(e) => handlePOQtyInputChange(item.id, e.target.value)} onBlur={() => handlePOQtyBlur(item.id)} className="font-bold text-slate-800 w-12 sm:w-16 text-center focus:outline-none bg-transparent" />
+                          <button onClick={() => updatePOQty(item.id, 10)} className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Increase by 10"><PlusCircle size={18} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              <div className="p-5 border-t border-slate-100 bg-white shrink-0 space-y-3">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                  <span className="text-sm font-medium text-slate-500">Est. Order Value</span>
+                  <span className="text-xl font-bold text-[#08834c]">Rs. {poDraftTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
+                <button onClick={() => savePO(true)} disabled={poDraft.length === 0} className={`w-full py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm ${poDraft.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-[#08834c] text-white hover:bg-[#076c3e] hover:shadow-md'}`}>
+                  <Download size={20} /> Save & Download PDF
+                </button>
+                <button onClick={() => savePO(false)} disabled={poDraft.length === 0} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${poDraft.length === 0 ? 'bg-slate-50 text-slate-400 border border-slate-200 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-[#08834c]'}`}>
+                  <CheckCircle2 size={18} /> Save Order Only
+                </button>
+                {poDraft.length > 0 && (
+                   <button onClick={() => setPoDraft([])} className="w-full mt-2 py-1 text-sm text-slate-500 font-medium hover:text-red-500 transition-colors">
+                     Clear Order Draft
+                   </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Order History Tab
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col min-h-[500px]">
+            <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+               <h3 className="font-bold text-lg text-slate-800">Order History</h3>
+               <div className="relative w-full sm:w-64">
+                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                 <input
+                   type="text"
+                   placeholder="Search by Order ID..."
+                   value={poHistorySearch}
+                   onChange={(e) => setPoHistorySearch(e.target.value)}
+                   className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#08834c] shadow-sm"
+                 />
+               </div>
+            </div>
+            
+            {filteredPoHistory.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-20 text-center text-slate-400">
+                <FileText size={48} className="mx-auto mb-4 opacity-20" />
+                <p className="text-lg">No matching purchase orders found.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 text-slate-500 text-sm border-b border-slate-100">
+                      <th className="p-4 font-medium">Order ID</th>
+                      <th className="p-4 font-medium">Created Date</th>
+                      <th className="p-4 font-medium">Completed On</th>
+                      <th className="p-4 font-medium">Items & Units</th>
+                      <th className="p-4 font-medium">Order Value</th>
+                      <th className="p-4 font-medium">Status</th>
+                      <th className="p-4 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPoHistory.map(po => {
+                      const poTotalValue = po.items.reduce((sum, i) => sum + ((i.price || 0) * (po.status === 'Completed' ? (i.receivedQty || 0) : i.orderQty)), 0);
+                      const poTotalUnits = po.items.reduce((sum, i) => sum + ((po.status === 'Completed' ? (i.receivedQty || 0) : parseInt(i.orderQty)) || 0), 0);
+                      
+                      return (
+                        <tr key={po.poId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                          <td className="p-4 text-sm font-bold text-slate-800">{po.poId}</td>
+                          <td className="p-4 text-sm text-slate-600">{formatDisplayDate(po.date)}</td>
+                          <td className="p-4 text-sm text-slate-600 font-medium">{po.completionDate ? formatDisplayDate(po.completionDate) : '-'}</td>
+                          <td className="p-4 text-sm text-slate-600">
+                            {po.items.length} items <span className="text-slate-400 text-xs ml-1">({poTotalUnits} units)</span>
+                          </td>
+                          <td className="p-4 text-sm font-bold text-slate-800">Rs. {poTotalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td className="p-4">
+                            <span className={`px-3 py-1 rounded-md text-xs font-medium ${po.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {po.status}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right flex items-center justify-end gap-2">
+                            <button onClick={() => setViewingPO(po)} className="p-2 text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1] rounded-lg transition-colors" title="View Details"><Eye size={18} /></button>
+                            <button onClick={() => generatePDF(po)} className="p-2 text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1] rounded-lg transition-colors" title="Download PDF"><Download size={18} /></button>
+                            
+                            {po.status === 'Pending' ? (
+                              <>
+                                <button onClick={() => editPendingPO(po)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Draft"><Pencil size={18} /></button>
+                                <button onClick={() => openReceivePOModal(po)} className="p-2 text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1] rounded-lg transition-colors" title="Mark as Received"><ClipboardCheck size={18} /></button>
+                                <button onClick={() => deletePendingPO(po.poId)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Order"><Trash2 size={18} /></button>
+                              </>
+                            ) : (
+                              <button onClick={() => openReceivePOModal(po)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Received Quantities"><Pencil size={18} /></button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const InventoryView = () => (
+    <div className="space-y-8 animate-in fade-in duration-300 pb-12">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Inventory Management</h2>
+          <p className="text-sm text-slate-500 mt-1">Manage and track your clinic's stock</p>
+        </div>
+        <button onClick={() => setIsReceivingModalOpen(true)} className="w-full sm:w-auto bg-slate-900 text-white px-5 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors shadow-sm"><Plus size={20} />Receive New Stock</button>
+      </div>
+
+      {/* Top Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
+        <div onClick={() => setStatusFilter('all')} className={`p-5 lg:p-6 rounded-2xl shadow-sm border flex items-center justify-between cursor-pointer transition-all ${statusFilter === 'all' ? 'bg-[#edf6f1] border-[#acdabb] ring-2 ring-[#d3ebd9]' : 'bg-white border-slate-100 hover:border-[#acdabb]'}`}>
+          <div className="min-w-0 pr-3"><p className="text-sm text-slate-500 font-medium mb-1 truncate">Total Items</p><h2 className="text-2xl xl:text-3xl font-bold text-slate-800 truncate">{totalProducts}</h2></div>
+          <div className="bg-slate-50 p-3 lg:p-4 rounded-full text-slate-600 shrink-0"><Package size={24} className="lg:w-7 lg:h-7" /></div>
+        </div>
+        <div onClick={() => setStatusFilter('low')} className={`p-5 lg:p-6 rounded-2xl shadow-sm border flex items-center justify-between cursor-pointer transition-all ${statusFilter === 'low' ? 'bg-yellow-50 border-yellow-200 ring-2 ring-yellow-100' : 'bg-white border-slate-100 hover:border-yellow-200'}`}>
+          <div className="min-w-0 pr-3"><p className="text-sm text-slate-500 font-medium mb-1 truncate">Low Stock Items</p><h2 className="text-2xl xl:text-3xl font-bold text-yellow-600 truncate">{lowStockCount}</h2></div>
+          <div className="bg-yellow-50 p-3 lg:p-4 rounded-full text-yellow-600 shrink-0"><AlertTriangle size={24} className="lg:w-7 lg:h-7" /></div>
+        </div>
+        <div onClick={() => setStatusFilter('out')} className={`p-5 lg:p-6 rounded-2xl shadow-sm border flex items-center justify-between cursor-pointer transition-all ${statusFilter === 'out' ? 'bg-red-50 border-red-200 ring-2 ring-red-100' : 'bg-white border-slate-100 hover:border-red-200'}`}>
+          <div className="min-w-0 pr-3"><p className="text-sm text-slate-500 font-medium mb-1 truncate">Out of Stock</p><h2 className="text-2xl xl:text-3xl font-bold text-red-600 truncate">{outOfStockCount}</h2></div>
+          <div className="bg-red-50 p-3 lg:p-4 rounded-full text-red-600 shrink-0"><XCircle size={24} className="lg:w-7 lg:h-7" /></div>
+        </div>
+        <div className="p-5 lg:p-6 rounded-2xl shadow-sm border flex items-center justify-between bg-white border-slate-100">
+          <div className="flex-1 min-w-0 pr-3"><p className="text-sm text-slate-500 font-medium mb-1 truncate">Total Stock Value</p><h2 className="text-xl lg:text-2xl xl:text-3xl font-bold text-[#08834c] truncate" title={`Rs. ${totalInventoryValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}>Rs. {totalInventoryValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2></div>
+          <div className="bg-[#edf6f1] p-3 lg:p-4 rounded-full text-[#08834c] shrink-0"><Banknote size={24} className="lg:w-7 lg:h-7" /></div>
+        </div>
+      </div>
+      
+      {/* Therapeutic Categories */}
+      <div>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <h3 className="text-lg font-bold text-slate-800">Therapeutic Categories</h3>
+          <div className="flex bg-slate-200/50 p-1 rounded-lg w-full md:w-auto overflow-x-auto custom-scrollbar">
+            <button onClick={() => setCategoryViewMode('products')} className={`whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md transition-all ${categoryViewMode === 'products' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500 hover:text-slate-700'}`}>Products</button>
+            <button onClick={() => setCategoryViewMode('units')} className={`whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md transition-all ${categoryViewMode === 'units' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500 hover:text-slate-700'}`}>Total Units</button>
+            <button onClick={() => setCategoryViewMode('value')} className={`whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md transition-all ${categoryViewMode === 'value' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500 hover:text-slate-700'}`}>Inventory Value</button>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 lg:gap-6">
+          {Object.entries(categoryStats).filter(([cat]) => !hiddenCategories.includes(cat)).map(([cat, stats], idx) => {
+            const iconName = categoryMap[cat] || 'Package';
+            const Icon = AVAILABLE_ICONS[iconName] || Package;
+            const isPrimary = categoryFilter === cat;
+            
+            let displayValue = stats.products;
+            let displayLabel = 'products';
+            if (categoryViewMode === 'units') {
+              displayValue = stats.units;
+              displayLabel = 'total units';
+            } else if (categoryViewMode === 'value') {
+              displayValue = `Rs. ${stats.value.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}`;
+              displayLabel = 'total value';
+            }
+
+            return (
+              <div key={cat} onClick={() => setCategoryFilter(prev => prev === cat ? 'All' : cat)} className={`${isPrimary ? 'bg-[#08834c] text-white shadow-md ring-2 ring-[#08834c] ring-offset-1' : 'bg-white text-slate-800 border border-slate-100 hover:border-[#08834c]'} p-5 rounded-2xl shadow-sm relative overflow-hidden group cursor-pointer transition-all duration-200 flex flex-col justify-between h-full`}>
+                <div className="flex justify-between items-start mb-4 gap-2">
+                  <h4 className={`font-medium leading-tight ${isPrimary ? 'text-[#edf6f1]' : 'text-slate-600'}`}>{cat}</h4>
+                  <div className={`${isPrimary ? 'bg-white/20' : 'bg-slate-50'} p-2 rounded-full shrink-0`}><Icon size={18} className={isPrimary ? 'text-white' : 'text-slate-400'} /></div>
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-xl xl:text-2xl font-bold truncate mb-0.5" title={displayValue}>{displayValue}</h2>
+                  <span className={`text-xs xl:text-sm font-normal ${isPrimary ? 'text-[#acdabb]' : 'text-slate-400'}`}>{displayLabel}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Product List Table */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50/50">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">Product List {categoryFilter !== 'All' && <span className="text-sm font-medium bg-[#edf6f1] text-[#08834c] px-3 py-1 rounded-lg">{categoryFilter}<button onClick={() => setCategoryFilter('All')} className="ml-2 hover:text-red-500"><XCircle size={14} className="inline mb-0.5"/></button></span>}</h3>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#08834c] text-slate-600 outline-none w-full sm:w-auto">
+              <option value="all">All Status</option>
+              <option value="in">In Stock</option>
+              <option value="low">Low Stock</option>
+              <option value="out">Out of Stock</option>
+            </select>
+            <div className="relative w-full sm:w-auto">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input type="text" placeholder="Search product..." value={dashboardSearch} onChange={(e) => setDashboardSearch(e.target.value)} className="w-full sm:w-64 pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#08834c]" />
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-slate-50/50 text-slate-500 text-sm border-b border-slate-100">
+                <th className="p-4 font-medium">Product Name</th>
+                <th className="p-4 font-medium">Quantity</th>
+                <th className="p-4 font-medium">Price/Unit</th>
+                <th className="p-4 font-medium">Status</th>
+                <th className="p-4 font-medium text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dashboardFiltered.map(item => {
+                const status = getStatus(item);
+                return (
+                  <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                    <td className="p-4 text-sm font-medium text-slate-800">{item.name}</td>
+                    <td className="p-4 text-sm text-slate-600">{item.quantity} <span className="text-slate-400 text-xs">{item.unit}</span></td>
+                    <td className="p-4 text-sm text-slate-600">Rs. {item.price.toFixed(2)}</td>
+                    <td className="p-4"><span className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium ${status.color}`}>{status.label}</span></td>
+                    <td className="p-4 flex items-center justify-end gap-2">
+                      <button onClick={() => setViewingProduct(item)} className="p-2 text-slate-400 hover:text-[#08834c] rounded-lg hover:bg-[#edf6f1]" title="View Details"><Eye size={16} /></button>
+                      <button onClick={() => handleEditClick(item)} className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50" title="Edit Product"><Pencil size={16} /></button>
+                      <button onClick={() => setItemToDelete(item)} className="p-2 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Delete Product"><Trash2 size={16} /></button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+      <Sidebar />
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 h-screen overflow-y-auto overflow-x-hidden">
+        {activeTab === 'dashboard' && <DashboardView />}
+        {activeTab === 'dispense' && <DispenseView />}
+        {activeTab === 'purchase' && <PurchaseOrderView />}
+        {activeTab === 'inventory' && <InventoryView />}
+        {activeTab === 'data' && <DataManagementView />}
+        {activeTab === 'settings' && <SettingsView />}
+      </main>
+
+      {/* --- MODALS --- */}
+      
+      {/* Receive PO Modal */}
+      {receivingPO && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div>
+                <h3 className="font-bold text-lg text-slate-800">
+                  {receivingPO.status === 'Completed' ? 'Edit Received Order' : 'Receive Order'}: {receivingPO.poId}
+                </h3>
+                <p className="text-sm text-slate-500">Confirm or edit the actual received quantities before updating stock.</p>
+              </div>
+              <button onClick={() => setReceivingPO(null)} className="text-slate-400 hover:text-slate-600"><XCircle size={24}/></button>
+            </div>
+            
+            <form onSubmit={confirmReceivePO}>
+              <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-4">
+                <div className="grid grid-cols-12 gap-4 px-4 pb-2 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <div className="col-span-6">Product</div>
+                  <div className="col-span-3 text-center">Ordered</div>
+                  <div className="col-span-3 text-center">Actual Received</div>
+                </div>
+
+                {receivingPO.items.map(item => (
+                  <div key={item.id} className="grid grid-cols-12 gap-4 items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <div className="col-span-6 pr-4">
+                      <p className="text-sm font-bold text-slate-800">{item.name}</p>
+                      <p className="text-xs text-slate-500">Stock: {inventory.find(i=>i.id===item.id)?.quantity || 0} {item.unit}</p>
+                    </div>
+                    <div className="col-span-3 text-center">
+                      <span className="font-bold text-slate-500">{item.orderQty}</span>
+                    </div>
+                    <div className="col-span-3">
+                      <div className="bg-white border border-slate-200 rounded-lg p-1">
+                        <input 
+                          type="number" 
+                          min="0" 
+                          value={item.receivedQty} 
+                          onChange={(e) => handleReceivingQtyChange(item.id, e.target.value)} 
+                          className="font-bold text-[#08834c] w-full text-center focus:outline-none" 
+                        />
+                      </div>
+                      {item.receivedQty !== item.orderQty && (
+                        <p className="text-[10px] text-yellow-600 text-center mt-1">Edited</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
+                <p className="text-sm text-slate-500">Items with 0 received will not update stock.</p>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setReceivingPO(null)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-200 rounded-xl transition-colors">Cancel</button>
+                  <button type="submit" className="px-6 py-2.5 bg-[#08834c] text-white font-bold rounded-xl shadow-md hover:bg-[#076c3e] flex items-center gap-2">
+                    <ClipboardCheck size={18} /> {receivingPO.status === 'Completed' ? 'Update Inventory' : 'Confirm Delivery'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View PO Details Modal */}
+      {viewingPO && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+              <div>
+                <h3 className="font-bold text-lg text-slate-800">Purchase Order Details</h3>
+                <div className="flex items-center gap-3 mt-1">
+                  <p className="text-sm text-slate-500 font-medium">{viewingPO.poId}</p>
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${viewingPO.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {viewingPO.status}
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setViewingPO(null)} className="text-slate-400 hover:text-slate-600"><XCircle size={24}/></button>
+            </div>
+            
+            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
+              <div className="flex flex-col sm:flex-row justify-between text-sm text-slate-500 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100 gap-4">
+                <div><span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Created Date</span>{formatDisplayDate(viewingPO.date)}</div>
+                {viewingPO.completionDate && <div><span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Completed Date</span>{formatDisplayDate(viewingPO.completionDate)}</div>}
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-xs uppercase text-slate-400 tracking-wider">
+                      <th className="py-3 pr-4 font-bold">Product</th>
+                      <th className="py-3 px-3 text-center font-bold">Ordered</th>
+                      {viewingPO.status === 'Completed' && <th className="py-3 px-3 text-center font-bold">Received</th>}
+                      <th className="py-3 px-3 text-right font-bold">Unit Price</th>
+                      <th className="py-3 pl-4 text-right font-bold">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {viewingPO.items.map(item => {
+                      const effectiveQty = viewingPO.status === 'Completed' ? (item.receivedQty || 0) : item.orderQty;
+                      const itemTotal = effectiveQty * (item.price || 0);
+                      return (
+                        <tr key={item.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                          <td className="py-4 pr-4">
+                            <p className="font-bold text-slate-800">{item.name}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{item.category}</p>
+                          </td>
+                          <td className="py-4 px-3 text-center font-medium text-slate-600 bg-slate-50/50">{item.orderQty} {item.unit}</td>
+                          {viewingPO.status === 'Completed' && (
+                            <td className="py-4 px-3 text-center font-bold text-[#08834c] bg-[#edf6f1]/50">
+                              {item.receivedQty} {item.unit}
+                            </td>
+                          )}
+                          <td className="py-4 px-3 text-right text-slate-600 font-medium">Rs. {(item.price || 0).toFixed(2)}</td>
+                          <td className="py-4 pl-4 text-right font-bold text-slate-800">Rs. {itemTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-slate-100 bg-white flex justify-between items-center shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] relative z-10">
+              <span className="text-slate-500 font-medium">{viewingPO.status === 'Completed' ? 'Final Order Value' : 'Estimated Order Value'}</span>
+              <span className="text-2xl sm:text-3xl font-bold text-[#08834c]">
+                Rs. {viewingPO.items.reduce((sum, i) => sum + ((i.price || 0) * (viewingPO.status === 'Completed' ? (i.receivedQty || 0) : i.orderQty)), 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Management Modal */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-lg text-slate-800">{categoryModalMode === 'add' ? 'Add New Category' : 'Edit Category'}</h3>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={24}/></button>
+            </div>
+            <form onSubmit={handleSaveCategory} className="p-6 space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Category Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={categoryForm.name} 
+                  onChange={(e) => setCategoryForm({...categoryForm, name: e.target.value})} 
+                  placeholder="e.g., Diagnostics"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" 
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center justify-between">
+                  Select Icon
+                  {categoryModalMode === 'edit' && <span className="text-xs font-normal text-slate-400 font-normal">Renaming updates all matching items</span>}
+                </label>
+                <div className="grid grid-cols-5 gap-2 max-h-[180px] overflow-y-auto custom-scrollbar p-1">
+                  {Object.keys(AVAILABLE_ICONS).map(iconKey => {
+                    const IconComp = AVAILABLE_ICONS[iconKey];
+                    const isSelected = categoryForm.icon === iconKey;
+                    return (
+                      <button 
+                        key={iconKey}
+                        type="button" 
+                        onClick={() => setCategoryForm({...categoryForm, icon: iconKey})}
+                        className={`p-3 rounded-xl flex items-center justify-center border transition-all ${isSelected ? 'border-[#08834c] bg-[#edf6f1] text-[#08834c] ring-2 ring-[#08834c]/20' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                      >
+                        <IconComp size={20} />
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              
+              <div className="pt-2 flex gap-3">
+                <button type="button" onClick={() => setIsCategoryModalOpen(false)} className="flex-1 py-3 text-slate-600 font-medium hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-3 bg-[#08834c] text-white font-bold rounded-xl shadow-lg hover:bg-[#076c3e]">Save Category</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Category Modal */}
+      {categoryToDelete && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2"><Trash2 size={32} /></div>
+              <h3 className="font-bold text-xl text-slate-800">Delete Category?</h3>
+              <p className="text-slate-500 text-sm">Are you sure you want to delete <strong className="text-slate-800">{categoryToDelete}</strong>? All inventory items and past records using this category will be automatically moved to "Others".</p>
+              <div className="pt-4 flex gap-3"><button onClick={() => setCategoryToDelete(null)} className="flex-1 py-3 text-slate-600 font-medium hover:bg-slate-50 border border-slate-200 rounded-xl">Cancel</button><button onClick={confirmDeleteCategory} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl shadow-lg hover:bg-red-700">Delete Category</button></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Dispensing Record Modal */}
+      {editingRecord && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-start bg-slate-50">
+              <div>
+                <h3 className="font-bold text-lg text-slate-800 mb-1">Edit Dispensing Record</h3>
+                <input 
+                  type="datetime-local" 
+                  value={editingRecord.editTimestamp}
+                  onChange={(e) => setEditingRecord({...editingRecord, editTimestamp: e.target.value})}
+                  className="text-sm text-slate-600 bg-white border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#08834c]"
+                />
+              </div>
+              <button onClick={() => setEditingRecord(null)} className="text-slate-400 hover:text-slate-600"><XCircle size={24}/></button>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col gap-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <PlusCircle size={14} className="text-[#08834c]" /> Add missing item
+                </label>
+                <select
+                  onChange={handleAddItemToRecord}
+                  value=""
+                  className="w-full bg-white border border-slate-200 rounded-lg text-sm px-3 py-2.5 focus:ring-2 focus:ring-[#08834c] outline-none"
+                >
+                  <option value="">Select a medication to add to this record...</option>
+                  {inventory.map(inv => {
+                    if(editingRecord.items.some(i => i.id === inv.id)) return null; 
+                    return <option key={inv.id} value={inv.id}>{inv.name} - Rs. {inv.price.toFixed(2)} / {inv.unit}</option>
+                  })}
+                </select>
+              </div>
+
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                {editingRecord.items.map(item => (
+                  <div key={item.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">{item.name}</p>
+                      <p className="text-xs text-slate-500">Rs. {item.price.toFixed(2)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1">
+                        <button onClick={() => handleEditRecordQty(item.id, -1)} className="p-1 hover:bg-slate-100 rounded text-slate-600"><MinusCircle size={18} /></button>
+                        <span className="font-bold text-slate-800 w-8 text-center">{item.dispenseQty}</span>
+                        <button onClick={() => handleEditRecordQty(item.id, 1)} className="p-1 hover:bg-slate-100 rounded text-slate-600"><PlusCircle size={18} /></button>
+                      </div>
+                      <button 
+                        onClick={() => handleRemoveItemFromRecord(item.id)} 
+                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                        title="Remove this item from record"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 flex justify-between items-center p-4 bg-[#edf6f1] rounded-xl border border-[#acdabb]">
+                <span className="font-medium text-slate-600">Corrected Total Billed</span>
+                <span className="text-2xl font-bold text-[#08834c]">Rs. {editingRecord.totalAmount.toFixed(2)}</span>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3">
+              <button onClick={() => setEditingRecord(null)} className="flex-1 py-3 text-slate-600 font-medium hover:bg-slate-50 rounded-xl border border-slate-200">Cancel</button>
+              <button onClick={saveRecordEdits} className="flex-1 py-3 bg-[#08834c] text-white font-bold rounded-xl shadow-lg hover:bg-[#076c3e]">Save Corrections</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Dispensing Record Modal */}
+      {viewingRecord && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-lg text-slate-800">Record Summary</h3>
+              <button onClick={() => setViewingRecord(null)} className="text-slate-400 hover:text-slate-600"><XCircle size={24}/></button>
+            </div>
+            <div className="p-6">
+              <div className="mb-4 text-sm text-slate-500 font-medium">Dispensed on: {formatDisplayDate(viewingRecord.timestamp)}</div>
+              <div className="space-y-2">
+                {viewingRecord.items.map(item => (
+                  <div key={item.id} className="flex justify-between text-sm py-2 border-b border-slate-50">
+                    <span className="text-slate-600">{item.name} x {item.dispenseQty}</span>
+                    <span className="font-bold text-slate-800">Rs. {(item.price * item.dispenseQty).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex justify-between text-lg font-bold">
+                <span>Total Amount</span>
+                <span className="text-[#08834c]">Rs. {viewingRecord.totalAmount.toFixed(2)}</span>
+              </div>
+            </div>
+            <div className="p-4 flex justify-end">
+              <button onClick={() => setViewingRecord(null)} className="px-6 py-2 bg-slate-200 text-slate-800 font-medium rounded-xl">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Viewing Product Modal */}
+      {viewingProduct && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg text-slate-800">Product Details</h3><button onClick={() => setViewingProduct(null)} className="text-slate-400 hover:text-slate-600"><XCircle size={24}/></button></div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-4 border-b border-slate-100 pb-4"><div className="bg-[#edf6f1] p-3 rounded-full text-[#08834c]"><Package size={32} /></div><div><h2 className="text-xl font-bold text-slate-800">{viewingProduct.name}</h2><p className="text-sm text-slate-500">{viewingProduct.id}</p></div></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-sm text-slate-500 mb-1">Category</p><p className="font-medium text-slate-800">{viewingProduct.category}</p></div>
+                <div><p className="text-sm text-slate-500 mb-1">Unit Type</p><p className="font-medium text-slate-800">{viewingProduct.unit}</p></div>
+                <div><p className="text-sm text-slate-500 mb-1">Current Stock</p><p className={`font-medium ${viewingProduct.quantity === 0 ? 'text-red-600' : viewingProduct.quantity <= viewingProduct.threshold ? 'text-yellow-600' : 'text-green-600'}`}>{viewingProduct.quantity}</p></div>
+                <div><p className="text-sm text-slate-500 mb-1">Alert Threshold</p><p className="font-medium text-slate-800">{viewingProduct.threshold}</p></div>
+                <div><p className="text-sm text-slate-500 mb-1">Price</p><p className="font-medium text-slate-800">Rs. {viewingProduct.price.toFixed(2)}</p></div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end"><button onClick={() => setViewingProduct(null)} className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium rounded-xl">Close</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Product Confirmation Modal */}
+      {itemToDelete && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2"><Trash2 size={32} /></div>
+              <h3 className="font-bold text-xl text-slate-800">Delete Product?</h3>
+              <p className="text-slate-500 text-sm">Are you sure you want to delete <strong className="text-slate-800">{itemToDelete.name}</strong>? This action cannot be undone.</p>
+              <div className="pt-4 flex gap-3"><button onClick={() => setItemToDelete(null)} className="flex-1 py-3 text-slate-600 font-medium hover:bg-slate-50 border border-slate-200 rounded-xl">Cancel</button><button onClick={confirmDelete} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl shadow-lg hover:bg-red-700">Delete</button></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Dispensing Record Confirmation Modal */}
+      {recordToDelete && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2"><Trash2 size={32} /></div>
+              <h3 className="font-bold text-xl text-slate-800">Delete Record?</h3>
+              <p className="text-slate-500 text-sm">Are you sure you want to delete this dispensing record? The dispensed items will be restored to your inventory.</p>
+              <div className="pt-4 flex gap-3"><button onClick={() => setRecordToDelete(null)} className="flex-1 py-3 text-slate-600 font-medium hover:bg-slate-50 border border-slate-200 rounded-xl">Cancel</button><button onClick={confirmDeleteRecord} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl shadow-lg hover:bg-red-700">Delete</button></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Product Modal */}
+      {editingProduct && editForm && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg text-slate-800">Edit Product</h3><button onClick={() => { setEditingProduct(null); setEditForm(null); }} className="text-slate-400 hover:text-slate-600"><XCircle size={24}/></button></div>
+            <form onSubmit={handleUpdateProduct} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <div><label className="block text-sm font-medium text-slate-700 mb-1">Product Name</label><input type="text" required value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">Category</label><select required value={editForm.category} onChange={(e) => setEditForm({...editForm, category: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none">{Object.keys(categoryMap).map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Unit Type</label>
+                  <select required value={editForm.unit} onChange={(e) => setEditForm({...editForm, unit: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none">
+                    <option value="Tablets">Tablets</option>
+                    <option value="Capsules">Capsules</option>
+                    <option value="Vials">Vials</option>
+                    <option value="Syrups">Syrups</option>
+                    <option value="Inhalers">Inhalers</option>
+                    <option value="Tubes">Tubes (Creams)</option>
+                    <option value="Pcs">Pieces</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">Price/Unit (Rs.)</label><input type="number" step="0.01" min="0" required value={editForm.price} onChange={(e) => setEditForm({...editForm, price: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">Low Alert Threshold</label><input type="number" min="1" required value={editForm.threshold} onChange={(e) => setEditForm({...editForm, threshold: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>
+              </div>
+              <div><label className="block text-sm font-medium text-slate-700 mb-1">Stock Level</label><input type="number" min="0" required value={editForm.quantity} onChange={(e) => setEditForm({...editForm, quantity: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>
+              <div className="pt-4 flex gap-3"><button type="button" onClick={() => { setEditingProduct(null); setEditForm(null); }} className="flex-1 py-3 text-slate-600 font-medium hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors">Cancel</button><button type="submit" className="flex-1 py-3 bg-[#08834c] text-white font-bold rounded-xl shadow-lg hover:bg-[#076c3e]">Save Changes</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Receive New Stock Modal */}
+      {isReceivingModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg text-slate-800">Receive Stock</h3><button onClick={() => setIsReceivingModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={24}/></button></div>
+            <div className="px-6 pt-4"><div className="flex bg-slate-100 p-1 rounded-lg"><button onClick={() => setReceiveMode('existing')} className={`flex-1 py-2 text-sm font-medium rounded-md ${receiveMode === 'existing' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500'}`}>Existing</button><button onClick={() => setReceiveMode('new')} className={`flex-1 py-2 text-sm font-medium rounded-md ${receiveMode === 'new' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500'}`}>New</button></div></div>
+            <form onSubmit={handleReceiveStock} className="p-6 space-y-4">
+              {receiveMode === 'existing' ? (
+                <>
+                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Select Product</label><select required value={receiveForm.id} onChange={(e) => setReceiveForm({...receiveForm, id: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none"><option value="">-- Choose --</option>{inventory.map(item => (<option key={item.id} value={item.id}>{item.name}</option>))}</select></div>
+                  {receiveForm.id && <div><label className="block text-sm font-medium text-slate-700 mb-1">Quantity Received</label><input type="number" min="1" required value={receiveForm.quantity} onChange={(e) => setReceiveForm({...receiveForm, quantity: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>}
+                </>
+              ) : (
+                <div className="space-y-4">
+                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Product Name</label><input type="text" required value={receiveForm.name} onChange={(e) => setReceiveForm({...receiveForm, name: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Category</label><select required value={receiveForm.category} onChange={(e) => setReceiveForm({...receiveForm, category: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none">{Object.keys(categoryMap).map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Unit Type</label>
+                      <select required value={receiveForm.unit} onChange={(e) => setReceiveForm({...receiveForm, unit: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none">
+                        <option value="Tablets">Tablets</option>
+                        <option value="Capsules">Capsules</option>
+                        <option value="Vials">Vials</option>
+                        <option value="Syrups">Syrups</option>
+                        <option value="Inhalers">Inhalers</option>
+                        <option value="Tubes">Tubes (Creams)</option>
+                        <option value="Pcs">Pieces</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Price (Rs.)</label><input type="number" step="0.01" required value={receiveForm.price} onChange={(e) => setReceiveForm({...receiveForm, price: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>
+                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Low Alert Threshold</label><input type="number" min="1" required value={receiveForm.threshold} onChange={(e) => setReceiveForm({...receiveForm, threshold: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>
+                  </div>
+                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Initial Qty</label><input type="number" required value={receiveForm.quantity} onChange={(e) => setReceiveForm({...receiveForm, quantity: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>
+                </div>
+              )}
+              <div className="pt-4 flex gap-3"><button type="button" onClick={() => setIsReceivingModalOpen(false)} className="flex-1 py-3 text-slate-600 font-medium hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors">Cancel</button><button type="submit" className="flex-1 py-3 bg-[#08834c] text-white font-bold rounded-xl shadow-lg hover:bg-[#076c3e]">Add Stock</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

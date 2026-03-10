@@ -1,0 +1,11 @@
+/* Main App CSS */
+
+/* Hide scrollbar while still allowing scroll (used for horizontal nav strips) */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
