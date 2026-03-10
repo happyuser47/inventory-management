@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, User, ArrowRight, ShieldCheck, Activity, Stethoscope, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import clinicLogo from '../assets/main.png';
+import pdfLogo from '../assets/pdf.png';
 
 export const AuthView = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -83,12 +83,14 @@ export const AuthView = () => {
 
                 {/* Form Side */}
                 <div className="flex-1 p-8 sm:p-12 flex flex-col justify-center bg-white relative">
-                    <div className="md:hidden flex justify-center mb-8">
-                        <img src={clinicLogo} alt="Logo" className="h-16 w-auto object-contain drop-shadow-sm" />
-                    </div>
 
                     <div className="max-w-md w-full mx-auto">
-                        <div className="mb-10 text-center md:text-left">
+                        <div className="mb-10 text-center md:text-left flex flex-col items-center md:items-start">
+                            {/* Highly Professional Logo Placement */}
+                            <div className="mb-8 p-3 bg-white rounded-2xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.06)] inline-flex justify-center items-center transition-transform hover:scale-105 duration-300">
+                                <img src={pdfLogo} alt="MNHC Logo" className="h-16 md:h-20 w-auto object-contain drop-shadow-sm" />
+                            </div>
+
                             <h2 className="text-3xl font-bold text-slate-800 mb-2">
                                 Welcome Back
                             </h2>
