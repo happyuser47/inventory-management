@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, ArrowRight, ShieldCheck, Activity, Stethoscope, AlertTriangle } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, ShieldCheck, Stethoscope, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import pdfLogo from '../assets/pdf.png';
+import clinicLogo from '../assets/main.png';
+import emblemLogo from '../assets/logo.png';
 
 export const AuthView = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -50,15 +51,18 @@ export const AuthView = () => {
                 <div className="hidden md:flex flex-col flex-1 bg-gradient-to-br from-[#08834c] to-[#056038] text-white p-12 justify-between relative overflow-hidden">
                     <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-2xl"></div>
                     <div className="absolute bottom-[-10%] left-[-10%] w-64 h-64 bg-black/10 rounded-full blur-2xl"></div>
+                    <div className="absolute top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-white/5 rounded-full blur-3xl"></div>
 
-                    <div className="relative z-10">
-                        <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8 shadow-lg border border-white/20 text-white">
-                            <Activity size={32} />
+                    {/* Logo & Title */}
+                    <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center">
+                        <div className="flex items-center gap-4 mb-8">
+                            <img src={emblemLogo} alt="Emblem" className="h-24 w-auto object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
+                            <img src={clinicLogo} alt="MNHC" className="h-24 w-auto object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
                         </div>
-                        <h1 className="text-4xl font-bold mb-4 tracking-tight leading-tight">
-                            MNHC<br />System Access
+                        <h1 className="text-3xl font-bold mb-3 tracking-tight">
+                            Inventory System
                         </h1>
-                        <p className="text-[#a8dec2] text-lg font-medium max-w-sm">
+                        <p className="text-[#a8dec2] text-base font-medium max-w-xs">
                             Secure, intelligent, and professional hospital management for the modern clinic.
                         </p>
                     </div>
@@ -85,12 +89,8 @@ export const AuthView = () => {
                 <div className="flex-1 p-8 sm:p-12 flex flex-col justify-center bg-white relative">
 
                     <div className="max-w-md w-full mx-auto">
-                        <div className="mb-10 text-center md:text-left flex flex-col items-center md:items-start">
-                            {/* Highly Professional Logo Placement */}
-                            <div className="mb-8 p-3 bg-white rounded-2xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.06)] inline-flex justify-center items-center transition-transform hover:scale-105 duration-300">
-                                <img src={pdfLogo} alt="MNHC Logo" className="h-16 md:h-20 w-auto object-contain drop-shadow-sm" />
-                            </div>
-
+                        <div className="mb-8 text-center md:text-left flex flex-col items-center md:items-start">
+                            <img src={clinicLogo} alt="MNHC" className="h-14 w-auto object-contain mb-6 drop-shadow-sm" />
                             <h2 className="text-3xl font-bold text-slate-800 mb-2">
                                 Welcome Back
                             </h2>
