@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, PackageSearch, Pill, Settings, Database, ClipboardList, ChevronRight, ChevronLeft, X, LogOut, User as UserIcon } from 'lucide-react';
+import { LayoutDashboard, PackageSearch, Pill, Settings, Database, ClipboardList, ChevronRight, ChevronLeft, X, LogOut, User as UserIcon, FileBarChart } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { useAuth } from '../context/AuthContext';
 import clinicLogo from '../assets/main.png';
@@ -22,6 +22,7 @@ export const Sidebar = () => {
         { id: 'purchase', icon: ClipboardList, label: 'Purchase Order', adminOnly: true },
         { id: 'inventory', icon: PackageSearch, label: 'Inventory / Stock', adminOnly: true },
         { id: 'data', icon: Database, label: 'Data Management', adminOnly: true },
+        { id: 'reports', icon: FileBarChart, label: 'Reports', adminOnly: true },
     ];
 
     const visibleNavItems = allNavItems.filter(nav => isAdmin || !nav.adminOnly);
@@ -81,7 +82,7 @@ export const Sidebar = () => {
                                 key={nav.id}
                                 onClick={() => handleTabSelect(nav.id)}
                                 title={isSidebarCollapsed ? nav.label : ''}
-                                className={`w-full flex items-center ${isSidebarCollapsed ? 'md:justify-center px-0' : 'justify-start px-4'} py-3.5 rounded-xl transition-all duration-200 ${activeTab === nav.id ? 'bg-[#08834c] text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                                className={`w-full flex items-center ${isSidebarCollapsed ? 'md:justify-center px-0' : 'justify-start px-4'} py-3.5 rounded-xl transition-all duration-200 active:scale-95 origin-left ${activeTab === nav.id ? 'bg-[#08834c] text-white shadow-lg ring-1 ring-white/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
                             >
                                 <Icon size={22} className="shrink-0" />
                                 <span className={`font-medium ml-3 truncate ${isSidebarCollapsed ? 'md:hidden' : 'block'}`}>{nav.label}</span>
@@ -95,7 +96,7 @@ export const Sidebar = () => {
                         <button
                             onClick={() => handleTabSelect('settings')}
                             title={isSidebarCollapsed ? 'Settings' : ''}
-                            className={`w-full flex items-center ${isSidebarCollapsed ? 'md:justify-center px-0' : 'justify-start px-4'} py-3.5 rounded-xl transition-all duration-200 ${activeTab === 'settings' ? 'bg-[#08834c] text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                            className={`w-full flex items-center ${isSidebarCollapsed ? 'md:justify-center px-0' : 'justify-start px-4'} py-3.5 rounded-xl transition-all duration-200 active:scale-95 origin-left ${activeTab === 'settings' ? 'bg-[#08834c] text-white shadow-lg ring-1 ring-white/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
                         >
                             <Settings size={22} className="shrink-0" />
                             <span className={`font-medium ml-3 truncate ${isSidebarCollapsed ? 'md:hidden' : 'block'}`}>Settings</span>

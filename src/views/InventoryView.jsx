@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Package, AlertTriangle, XCircle, Banknote, Search, Eye, Pencil, Trash2 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { AVAILABLE_ICONS } from '../utils/data';
@@ -25,21 +25,24 @@ export const InventoryView = () => {
             "Delete Product",
             `Are you sure you want to delete ${item.name}? This action cannot be undone.`,
             () => {
-                import('../utils/supabaseActions').then(({ deleteStockFromSupabase }) => {
-                    // Optimistic: remove from local state immediately
-                    setInventory(prev => prev.filter(i => i.id !== item.id));
-                    setCart(prev => prev.filter(i => i.id !== item.id));
+                // Optimistic: remove from local state IMMEDIATELY
+                setInventory(prev => prev.filter(i => i.id !== item.id));
+                setCart(prev => prev.filter(i => i.id !== item.id));
 
-                    // Background sync
-                    deleteStockFromSupabase(item.id).then(() => refreshData()).catch(err => { console.error(err); refreshData(); });
+                import('../utils/supabaseActions').then(({ deleteStockFromSupabase }) => {
+                    // Background sync (do not refresh data on success to prevent UI bounce)
+                    deleteStockFromSupabase(item.id).catch(err => { 
+                        console.error("Delete failed, restoring data:", err); 
+                        refreshData(); // Only refresh if it failed to restore state
+                    });
                 });
             }
         );
     };
 
     const totalProducts = inventory.length;
-    const lowStockCount = inventory.filter(i => i.quantity > 0 && i.quantity <= i.threshold).length;
-    const outOfStockCount = inventory.filter(i => i.quantity === 0).length;
+    const lowStockCount = useMemo(() => inventory.filter(i => i.quantity > 0 && i.quantity <= i.threshold).length, [inventory]);
+    const outOfStockCount = useMemo(() => inventory.filter(i => i.quantity === 0).length, [inventory]);
 
     const getStatus = (item) => {
         if (item.quantity === 0) return { label: 'Out of stock', color: 'bg-red-100 text-red-700' };
@@ -47,24 +50,26 @@ export const InventoryView = () => {
         return { label: 'In stock', color: 'bg-green-100 text-green-700' };
     };
 
-    const dashboardFiltered = inventory.filter(item => {
-        const searchLower = dashboardSearch.trim().toLowerCase();
-        const matchesSearch = searchLower === '' ||
-            item.name.toLowerCase().includes(searchLower) ||
-            item.category.toLowerCase().includes(searchLower);
+    const dashboardFiltered = useMemo(() => {
+        return inventory.filter(item => {
+            const searchLower = dashboardSearch.trim().toLowerCase();
+            const matchesSearch = searchLower === '' ||
+                item.name.toLowerCase().includes(searchLower) ||
+                item.category.toLowerCase().includes(searchLower);
 
-        let matchesStatus = true;
-        if (statusFilter === 'low') matchesStatus = item.quantity > 0 && item.quantity <= item.threshold;
-        if (statusFilter === 'out') matchesStatus = item.quantity === 0;
-        if (statusFilter === 'in') matchesStatus = item.quantity > item.threshold;
+            let matchesStatus = true;
+            if (statusFilter === 'low') matchesStatus = item.quantity > 0 && item.quantity <= item.threshold;
+            if (statusFilter === 'out') matchesStatus = item.quantity === 0;
+            if (statusFilter === 'in') matchesStatus = item.quantity > item.threshold;
 
-        let matchesCategory = true;
-        if (categoryFilter !== 'All') {
-            matchesCategory = item.category === categoryFilter;
-        }
+            let matchesCategory = true;
+            if (categoryFilter !== 'All') {
+                matchesCategory = item.category === categoryFilter;
+            }
 
-        return matchesSearch && matchesStatus && matchesCategory;
-    });
+            return matchesSearch && matchesStatus && matchesCategory;
+        });
+    }, [inventory, dashboardSearch, statusFilter, categoryFilter]);
 
     const categoryStats = useMemo(() => {
         const stats = {};
@@ -90,6 +95,17 @@ export const InventoryView = () => {
         setEditingProduct(item);
         setEditForm({ ...item });
     };
+
+    // --- PAGINATION ---
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 50;
+    
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [dashboardSearch, statusFilter, categoryFilter, categoryViewMode]);
+
+    const totalPages = Math.ceil(dashboardFiltered.length / itemsPerPage);
+    const paginatedInventory = dashboardFiltered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     return (
         <div className="space-y-8 animate-in fade-in duration-300 pb-12">
@@ -129,7 +145,6 @@ export const InventoryView = () => {
                     <div className="flex bg-slate-200/50 p-1 rounded-lg w-full md:w-auto overflow-x-auto custom-scrollbar">
                         <button onClick={() => setCategoryViewMode('products')} className={`whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md transition-all ${categoryViewMode === 'products' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500 hover:text-slate-700'}`}>Products</button>
                         <button onClick={() => setCategoryViewMode('units')} className={`whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md transition-all ${categoryViewMode === 'units' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500 hover:text-slate-700'}`}>Total Units</button>
-                        <button onClick={() => setCategoryViewMode('value')} className={`whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md transition-all ${categoryViewMode === 'value' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500 hover:text-slate-700'}`}>Inventory Value</button>
                     </div>
                 </div>
 
@@ -144,9 +159,6 @@ export const InventoryView = () => {
                         if (categoryViewMode === 'units') {
                             displayValue = stats.units;
                             displayLabel = 'total units';
-                        } else if (categoryViewMode === 'value') {
-                            displayValue = `Rs. ${stats.value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-                            displayLabel = 'total value';
                         }
 
                         return (
@@ -194,7 +206,7 @@ export const InventoryView = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {dashboardFiltered.map(item => {
+                            {paginatedInventory.map(item => {
                                 const status = getStatus(item);
                                 return (
                                     <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -213,6 +225,34 @@ export const InventoryView = () => {
                         </tbody>
                     </table>
                 </div>
+                
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-white rounded-b-2xl">
+                        <span className="text-sm text-slate-500 font-medium">
+                            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, dashboardFiltered.length)} of {dashboardFiltered.length} entries
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                                disabled={currentPage === 1} 
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                Previous
+                            </button>
+                            <span className="text-sm font-bold text-slate-700 mx-2">
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button 
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                                disabled={currentPage === totalPages || totalPages === 0} 
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

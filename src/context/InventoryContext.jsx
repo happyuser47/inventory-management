@@ -161,12 +161,33 @@ export const InventoryProvider = ({ children }) => {
 
     useEffect(() => {
         if (authLoading) return; // wait for auth to resolve first
+
+        let subscription;
         if (user) {
             refreshData();
+
+            subscription = supabase
+                .channel('public-db-changes')
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public' },
+                    (payload) => {
+                        console.log('Real-time sync triggered by:', payload.table);
+                        refreshData();
+                    }
+                )
+                .subscribe();
+
         } else {
             // Not logged in, skip data fetch and clear loading
             setIsInitialLoad(false);
         }
+
+        return () => {
+            if (subscription) {
+                supabase.removeChannel(subscription);
+            }
+        };
     }, [user, authLoading]);
 
     const contextValue = {

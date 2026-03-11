@@ -1,11 +1,13 @@
-import React, { useRef } from 'react';
-import { Download, Upload, FileSpreadsheet } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Download, Upload, FileSpreadsheet, AlertTriangle, ShieldCheck, Activity } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { escapeCSV, parseCSVRow, triggerDownload } from '../utils/helpers';
 
 export const DataManagementView = () => {
-    const { inventory, setInventory, setCategoryMap, showConfirm } = useInventory();
+    const { inventory, setInventory, setCategoryMap, showConfirm, refreshData } = useInventory();
     const fileInputRef = useRef(null);
+    const [isImporting, setIsImporting] = useState(false);
+    const [message, setMessage] = useState({ text: '', type: '' });
 
     const downloadTemplate = () => {
         const headers = ['Name', 'Category', 'Unit', 'Price', 'Quantity', 'Threshold'];
@@ -27,97 +29,163 @@ export const DataManagementView = () => {
         const file = e.target.files[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            const text = evt.target.result;
-            const lines = text.split(/\r?\n/).filter(line => line.trim());
+        setIsImporting(true);
+        setMessage({ text: '', type: '' });
 
-            if (lines.length <= 1) {
-                showConfirm("Import Failed", "The selected file is empty or contains no data rows to import.", null, 'amber');
-                return;
-            }
+        // setTimeout with a solid 300ms delay perfectly gives the browser 
+        // the required time to animate and paint the React Loading UI
+        // before we initiate heavy synchronous parsing scripts that lock the system thread.
+        setTimeout(() => {
+            const reader = new FileReader();
+            
+            reader.onload = async (evt) => {
+                try {
+                    const text = evt.target.result;
+                    const lines = text.split(/\r?\n/).filter(line => line.trim());
 
-            const headers = parseCSVRow(lines[0]).map(h => h.toLowerCase().trim());
-            const newItems = [];
-            let importedCount = 0;
-            let mergedCount = 0;
-
-            const idIdx = headers.indexOf('id');
-            const nameIdx = headers.indexOf('name');
-            const catIdx = headers.indexOf('category');
-            const unitIdx = headers.indexOf('unit');
-            const priceIdx = headers.indexOf('price');
-            const qtyIdx = headers.indexOf('quantity');
-            const threshIdx = headers.indexOf('threshold');
-
-            if (nameIdx === -1) {
-                showConfirm("Invalid Format", "Invalid file format. The 'Name' column is required.", null, 'amber');
-                return;
-            }
-
-            for (let i = 1; i < lines.length; i++) {
-                const row = parseCSVRow(lines[i]);
-                if (row.length < headers.length && row.length <= 1) continue;
-
-                const name = row[nameIdx] || '';
-                if (!name) continue;
-
-                let id = idIdx > -1 ? row[idIdx] : '';
-                const category = catIdx > -1 && row[catIdx] ? row[catIdx] : 'Others';
-                const unit = unitIdx > -1 && row[unitIdx] ? row[unitIdx] : 'Tablets';
-                const price = priceIdx > -1 ? parseFloat(row[priceIdx]) || 0 : 0;
-                const quantity = qtyIdx > -1 ? parseInt(row[qtyIdx]) || 0 : 0;
-                const threshold = threshIdx > -1 ? parseInt(row[threshIdx]) || 50 : 50;
-
-                if (!id) id = `#MED${Math.floor(1000 + Math.random() * 9000)}`;
-
-                newItems.push({ id, name, category, unit, price, quantity, threshold });
-            }
-
-            if (newItems.length > 0) {
-                // Bulk Process with Supabase
-                import('../lib/supabase').then(async ({ supabase }) => {
-                    const { refreshData } = await import('../context/InventoryContext').then(m => window.inventoryRefreshData);
-
-                    // Handle missing categories
-                    const categoriesToEnsure = [...new Set(newItems.map(i => i.category))];
-                    const catInsertions = categoriesToEnsure.map(cat => ({ name: cat, icon: 'Package' }));
-                    await supabase.from('categories').upsert(catInsertions, { onConflict: 'name', ignoreDuplicates: true });
-
-                    // Handle inventory upsert
-                    // Mapping local field names to match schema if necessary. In our schema, names are identical.
-                    const inventoryInsertions = newItems.map(item => ({
-                        id: item.id,
-                        name: item.name,
-                        category: item.category,
-                        unit: item.unit,
-                        price: item.price,
-                        quantity: item.quantity,
-                        threshold: item.threshold
-                    }));
-
-                    const { error } = await supabase.from('inventory').upsert(inventoryInsertions, { onConflict: 'id' });
-
-                    if (error) {
-                        console.error(error);
-                        showConfirm("Import Error", "Error importing to backend database. Please check your data and try again.", null, 'danger');
-                    } else {
-                        await window.inventoryRefreshData?.();
-                        showConfirm("Success", `File processed successfully. Attempted to import/update ${inventoryInsertions.length} items.`, null, 'amber');
+                    if (lines.length <= 1) {
+                        setMessage({ text: "The selected file is empty or contains no data rows to import.", type: 'error' });
+                        setIsImporting(false);
+                        return;
                     }
-                });
-            }
-        };
-        reader.readAsText(file);
+
+                    const headers = parseCSVRow(lines[0]).map(h => h.toLowerCase().trim());
+                    const newItems = [];
+                    const newItemsMap = new Map();
+                    const existingInventoryMap = new Map(inventory.map(inv => [inv.name.toLowerCase(), inv]));
+                    
+                    const idIdx = headers.indexOf('id');
+                    const nameIdx = headers.indexOf('name');
+                    const catIdx = headers.indexOf('category');
+                    const unitIdx = headers.indexOf('unit');
+                    const priceIdx = headers.indexOf('price');
+                    const qtyIdx = headers.indexOf('quantity');
+                    const threshIdx = headers.indexOf('threshold');
+
+                    if (nameIdx === -1) {
+                        setMessage({ text: "Invalid file format. The 'Name' column is securely required in your CSV.", type: 'error' });
+                        setIsImporting(false);
+                        return;
+                    }
+
+                    for (let i = 1; i < lines.length; i++) {
+                        const row = parseCSVRow(lines[i]);
+                        if (row.length < headers.length && row.length <= 1) continue;
+
+                        const name = row[nameIdx] || '';
+                        if (!name) continue;
+                        
+                        const nameLower = name.toLowerCase();
+                        let id = idIdx > -1 ? row[idIdx] : '';
+
+                        const existingItem = existingInventoryMap.get(nameLower);
+                        const alreadyParsedItem = newItemsMap.get(nameLower);
+                        
+                        if (existingItem) {
+                            id = existingItem.id; 
+                        } else if (alreadyParsedItem) {
+                            id = alreadyParsedItem.id; 
+                        } else if (!id) {
+                            id = `#MED${Math.floor(1000 + Math.random() * 9000)}`;
+                        }
+
+                        const category = catIdx > -1 && row[catIdx] ? row[catIdx] : (existingItem ? existingItem.category : 'Others');
+                        const unit = unitIdx > -1 && row[unitIdx] ? row[unitIdx] : (existingItem ? existingItem.unit : 'Tablets');
+
+                        const parsedPrice = priceIdx > -1 ? parseFloat(row[priceIdx]) : NaN;
+                        const price = !isNaN(parsedPrice) ? parsedPrice : (existingItem ? existingItem.price : 0);
+
+                        const parsedQty = qtyIdx > -1 ? parseInt(row[qtyIdx], 10) : NaN;
+                        const quantity = !isNaN(parsedQty) ? parsedQty : (existingItem ? existingItem.quantity : 0);
+
+                        const parsedThresh = threshIdx > -1 ? parseInt(row[threshIdx], 10) : NaN;
+                        const threshold = !isNaN(parsedThresh) ? parsedThresh : (existingItem ? existingItem.threshold : 50);
+
+                        const newItem = { id, name, category, unit, price, quantity, threshold };
+                        newItems.push(newItem);
+                        newItemsMap.set(nameLower, newItem);
+                    }
+
+                    if (newItems.length > 0) {
+                        const { supabase } = await import('../lib/supabase');
+
+                        const categoriesToEnsure = [...new Set(newItems.map(i => i.category))];
+                        const catInsertions = categoriesToEnsure.map(cat => ({ name: cat, icon: 'Package' }));
+                        const { error: catError } = await supabase.from('categories').upsert(catInsertions, { onConflict: 'name', ignoreDuplicates: true });
+                        
+                        if (catError) {
+                            console.error('Cat Error:', catError);
+                            setMessage({ text: `Failed to setup categories: ${catError.message || catError.details}`, type: 'error' });
+                            setIsImporting(false);
+                            return;
+                        }
+
+                        const inventoryMap = {};
+                        newItems.forEach(item => {
+                            inventoryMap[item.id] = {
+                                id: item.id,
+                                name: item.name,
+                                category: item.category,
+                                unit: item.unit,
+                                price: item.price,
+                                quantity: item.quantity,
+                                threshold: item.threshold
+                            };
+                        });
+                        const inventoryInsertions = Object.values(inventoryMap);
+
+                        const { error } = await supabase.from('inventory').upsert(inventoryInsertions, { onConflict: 'id' });
+
+                        if (error) {
+                            console.error('Inv Error:', error);
+                            setMessage({ text: `Database rejected payload. Reason: ${error.message || error.details}`, type: 'error' });
+                        } else {
+                            await refreshData();
+                            setMessage({ text: `Success! Formatted and perfectly updated ${inventoryInsertions.length} inventory items.`, type: 'success' });
+                        }
+                    } else {
+                        setIsImporting(false);
+                    }
+                } catch (err) {
+                    console.error("Critical Import Error:", err);
+                    setMessage({ text: "A critical error occurred while parsing the CSV data.", type: 'error' });
+                } finally {
+                    setIsImporting(false);
+                }
+            };
+            
+            reader.readAsText(file);
+        }, 300);
+
         e.target.value = null;
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="space-y-6 animate-in fade-in duration-300 relative">
+            
+            {/* Loading Overlay */}
+            {isImporting && (
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-50 rounded-3xl flex flex-col items-center justify-center -m-6">
+                    <div className="bg-white px-8 py-6 rounded-2xl shadow-xl shadow-[#08834c]/10 border border-[#08834c]/20 flex flex-col items-center max-w-sm animate-in zoom-in-95 duration-200">
+                         <Activity size={48} className="animate-spin text-[#08834c] mb-4" />
+                         <h3 className="font-bold text-lg text-slate-800 mb-1">Importing Inventory</h3>
+                         <p className="text-sm text-slate-500 text-center leading-relaxed">Reading your CSV file and securely syncing with the database...</p>
+                    </div>
+                </div>
+            )}
+
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">Data Management</h2>
                 <p className="text-sm text-slate-500 mt-1">Import or export your inventory data securely via CSV files.</p>
             </div>
+
+            {/* Inline Message Notifications */}
+            {message.text && (
+                <div className={`p-4 rounded-xl text-sm font-bold flex items-center gap-2 animate-in slide-in-from-top-4 ${message.type === 'error' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-[#edf6f1] text-[#08834c] border border-[#c4e6d2]'}`}>
+                    {message.type === 'error' ? <AlertTriangle size={18} /> : <ShieldCheck size={18} />}
+                    {message.text}
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
@@ -148,8 +216,8 @@ export const DataManagementView = () => {
                         ref={fileInputRef}
                         className="hidden"
                     />
-                    <button onClick={() => fileInputRef.current?.click()} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                        Upload CSV File
+                    <button disabled={isImporting} onClick={() => fileInputRef.current?.click()} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                        {isImporting ? 'Processing...' : 'Upload CSV File'}
                     </button>
                 </div>
 

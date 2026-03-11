@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Pill, Search, ShoppingCart, XCircle, MinusCircle, PlusCircle, CheckCircle2, FileText, Clock, Eye, Pencil, Trash2, Lock } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { useAuth } from '../context/AuthContext';
@@ -18,17 +18,21 @@ export const DispenseView = () => {
         refreshData
     } = useInventory();
 
-    const dispenseFiltered = inventory.filter(item => {
-        const searchLower = dispenseSearch.trim().toLowerCase();
-        return searchLower === '' ||
-            item.name.toLowerCase().includes(searchLower) ||
-            item.category.toLowerCase().includes(searchLower);
-    });
+    const dispenseFiltered = React.useMemo(() => {
+        return inventory.filter(item => {
+            const searchLower = dispenseSearch.trim().toLowerCase();
+            return searchLower === '' ||
+                item.name.toLowerCase().includes(searchLower) ||
+                item.category.toLowerCase().includes(searchLower);
+        });
+    }, [inventory, dispenseSearch]);
 
-    const filteredHistoryRecords = historyRecords.filter(record => {
-        if (!recordSearch) return true;
-        return record.recordId.toString().includes(recordSearch);
-    });
+    const filteredHistoryRecords = React.useMemo(() => {
+        return historyRecords.filter(record => {
+            if (!recordSearch) return true;
+            return record.recordId.toString().includes(recordSearch);
+        });
+    }, [historyRecords, recordSearch]);
 
     const cartTotal = cart.reduce((sum, item) => {
         const qty = item.dispenseQty === '' ? 0 : parseInt(item.dispenseQty);
@@ -184,11 +188,25 @@ export const DispenseView = () => {
 
                 // Background sync
                 import('../utils/supabaseActions').then(({ deleteDispensingRecordSupabase }) => {
-                    deleteDispensingRecordSupabase(record.recordId, record.items).then(() => refreshData()).catch(err => { console.error(err); refreshData(); });
+                    deleteDispensingRecordSupabase(record.recordId, record.items).catch(err => { 
+                        console.error("Delete failed, restoring data:", err); 
+                        refreshData(); 
+                    });
                 });
             }
         );
     };
+
+    // --- PAGINATION ---
+    const [historyPage, setHistoryPage] = useState(1);
+    const historyItemsPerPage = 50;
+    
+    useEffect(() => {
+        setHistoryPage(1);
+    }, [recordSearch]);
+
+    const totalHistoryPages = Math.ceil(filteredHistoryRecords.length / historyItemsPerPage);
+    const paginatedHistory = filteredHistoryRecords.slice((historyPage - 1) * historyItemsPerPage, historyPage * historyItemsPerPage);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300 pb-12">
@@ -215,7 +233,7 @@ export const DispenseView = () => {
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 grid grid-cols-1 xl:grid-cols-2 gap-4 auto-rows-max custom-scrollbar">
-                            {dispenseFiltered.map(item => (
+                            {dispenseFiltered.slice(0, 60).map(item => (
                                 <div key={item.id} onClick={() => addToCart(item)} className={`border ${item.quantity === 0 ? 'border-red-100 bg-red-50/30 opacity-60 cursor-not-allowed' : 'border-slate-100 hover:border-[#08834c] hover:shadow-md cursor-pointer'} p-4 rounded-xl transition-all flex justify-between items-center group`}>
                                     <div className="flex-1 min-w-0 pr-3">
                                         <h4 className="font-bold text-slate-800 truncate">{item.name}</h4>
@@ -310,7 +328,7 @@ export const DispenseView = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredHistoryRecords.map(record => (
+                                    {paginatedHistory.map(record => (
                                         <tr key={record.recordId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                                             <td className="p-4 text-sm font-bold text-slate-800">#{record.recordId.toString().slice(-6)}</td>
                                             <td className="p-4 text-sm text-slate-600 font-medium">
@@ -336,6 +354,34 @@ export const DispenseView = () => {
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                    )}
+                    
+                    {/* Pagination Controls */}
+                    {totalHistoryPages > 1 && (
+                        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-white rounded-b-2xl">
+                            <span className="text-sm text-slate-500 font-medium">
+                                Showing {((historyPage - 1) * historyItemsPerPage) + 1} to {Math.min(historyPage * historyItemsPerPage, filteredHistoryRecords.length)} of {filteredHistoryRecords.length} entries
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={() => setHistoryPage(p => Math.max(1, p - 1))} 
+                                    disabled={historyPage === 1} 
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-sm font-bold text-slate-700 mx-2">
+                                    Page {historyPage} of {totalHistoryPages}
+                                </span>
+                                <button 
+                                    onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))} 
+                                    disabled={historyPage === totalHistoryPages || totalHistoryPages === 0} 
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Next
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

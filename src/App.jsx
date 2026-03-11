@@ -9,6 +9,7 @@ import { PurchaseOrderView } from './views/PurchaseOrderView';
 import { InventoryView } from './views/InventoryView';
 import { DataManagementView } from './views/DataManagementView';
 import { SettingsView } from './views/SettingsView';
+import { ReportsView } from './views/ReportsView';
 import { AuthView } from './views/AuthView';
 import { Menu } from 'lucide-react';
 import mobileClinicLogo from './assets/pdf.png';
@@ -50,13 +51,18 @@ const AppContent = () => {
         </div>
 
         <div className="p-4 md:p-8 flex-1 overflow-y-auto custom-scrollbar relative">
-          <div className="max-w-7xl mx-auto">
-            {activeTab === 'dashboard' && <DashboardView />}
-            {activeTab === 'dispense' && <DispenseView />}
-            {activeTab === 'purchase' && isAdmin && <PurchaseOrderView />}
-            {activeTab === 'inventory' && isAdmin && <InventoryView />}
-            {activeTab === 'data' && isAdmin && <DataManagementView />}
-            {activeTab === 'settings' && isAdmin && <SettingsView />}
+          <div className="max-w-7xl mx-auto h-full">
+            <div className={activeTab === 'dashboard' ? 'block' : 'hidden'}><DashboardView /></div>
+            <div className={activeTab === 'dispense' ? 'block' : 'hidden'}><DispenseView /></div>
+            {isAdmin && (
+              <>
+                <div className={activeTab === 'purchase' ? 'block' : 'hidden'}><PurchaseOrderView /></div>
+                <div className={activeTab === 'inventory' ? 'block' : 'hidden'}><InventoryView /></div>
+                <div className={activeTab === 'data' ? 'block' : 'hidden'}><DataManagementView /></div>
+                <div className={activeTab === 'reports' ? 'block' : 'hidden'}><ReportsView /></div>
+                <div className={activeTab === 'settings' ? 'block' : 'hidden'}><SettingsView /></div>
+              </>
+            )}
           </div>
         </div>
       </div>

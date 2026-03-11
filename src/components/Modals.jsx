@@ -637,8 +637,10 @@ export const Modals = () => {
                                     </button>
                                 )}
                                 <button
-                                    onClick={() => {
-                                        if (confirmModal.onConfirm) confirmModal.onConfirm();
+                                    onClick={async () => {
+                                        if (confirmModal.onConfirm) {
+                                            await confirmModal.onConfirm();
+                                        }
                                         closeConfirm();
                                     }}
                                     className={`flex-1 py-3 px-4 text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95 ${confirmModal.type === 'danger' ? 'bg-red-500 hover:bg-red-600 shadow-red-200' : 'bg-[#08834c] hover:bg-[#076c3e] shadow-green-200'}`}

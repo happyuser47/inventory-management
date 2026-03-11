@@ -170,6 +170,19 @@ export const receivePOSupabase = async (poId, itemsToReceive) => {
     }
 };
 
+export const deletePurchaseOrderSupabase = async (poId) => {
+    // 1. Delete PO Items
+    await supabase.from('purchase_order_items').delete().eq('po_id', poId);
+    // 2. Delete PO
+    await supabase.from('purchase_orders').delete().eq('po_id', poId);
+};
+
+export const deleteAllPurchaseOrdersSupabase = async () => {
+    const { error: error1 } = await supabase.from('purchase_order_items').delete().neq('po_id', '0');
+    const { error: error2 } = await supabase.from('purchase_orders').delete().neq('po_id', '0');
+    if (error1 || error2) console.error("Error deleting all POs", error1, error2);
+};
+
 // --- SETTINGS ---
 export const saveSettingsToSupabase = async (settingsObj) => {
     const { error } = await supabase.from('settings').update({

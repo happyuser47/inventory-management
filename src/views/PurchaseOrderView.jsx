@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle2, ClipboardList, Search, PackageSearch, PackagePlus, XCircle, MinusCircle, PlusCircle, Download, FileText, Eye, Pencil, ClipboardCheck, Trash2 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { formatDisplayDate } from '../utils/helpers';
@@ -29,23 +29,27 @@ export const PurchaseOrderView = () => {
         return sum + (price * qty);
     }, 0);
 
-    const poFilteredInventory = inventory.filter(item => {
-        const searchLower = poSearch.trim().toLowerCase();
-        const matchesSearch = searchLower === '' ||
-            item.name.toLowerCase().includes(searchLower) ||
-            item.category.toLowerCase().includes(searchLower);
+    const poFilteredInventory = React.useMemo(() => {
+        return inventory.filter(item => {
+            const searchLower = poSearch.trim().toLowerCase();
+            const matchesSearch = searchLower === '' ||
+                item.name.toLowerCase().includes(searchLower) ||
+                item.category.toLowerCase().includes(searchLower);
 
-        let matchesStatus = true;
-        if (poFilter === 'low') matchesStatus = item.quantity > 0 && item.quantity <= item.threshold;
-        if (poFilter === 'out') matchesStatus = item.quantity === 0;
+            let matchesStatus = true;
+            if (poFilter === 'low') matchesStatus = item.quantity > 0 && item.quantity <= item.threshold;
+            if (poFilter === 'out') matchesStatus = item.quantity === 0;
 
-        return matchesSearch && matchesStatus;
-    });
+            return matchesSearch && matchesStatus;
+        });
+    }, [inventory, poSearch, poFilter]);
 
-    const filteredPoHistory = poHistory.filter(po => {
-        if (!poHistorySearch) return true;
-        return po.poId.toLowerCase().includes(poHistorySearch.toLowerCase());
-    });
+    const filteredPoHistory = React.useMemo(() => {
+        return poHistory.filter(po => {
+            if (!poHistorySearch) return true;
+            return po.poId.toLowerCase().includes(poHistorySearch.toLowerCase());
+        });
+    }, [poHistory, poHistorySearch]);
 
     const addToPO = (item) => {
         setPoDraft(prev => {
@@ -364,19 +368,38 @@ export const PurchaseOrderView = () => {
         }).catch(err => { console.error(err); refreshData(); });
     };
 
-    const deletePendingPO = async (poId) => {
+    const handleClearAllHistory = () => {
+        showConfirm(
+            "Clear Complete History",
+            "Are you sure you want to permanently delete ALL purchase orders? This action cannot be undone.",
+            () => {
+                setPoHistory([]);
+                import('../utils/supabaseActions').then(async ({ deleteAllPurchaseOrdersSupabase }) => {
+                    await deleteAllPurchaseOrdersSupabase();
+                    refreshData();
+                }).catch(err => {
+                    console.error(err);
+                    refreshData();
+                });
+            }
+        );
+    };
+
+    const deletePO = async (po) => {
         showConfirm(
             "Delete Purchase Order",
-            "Are you sure you want to delete this Pending Purchase Order?",
+            `Are you sure you want to delete this ${po.status} Purchase Order?${po.status === 'Completed' ? ' This action will delete the log but will NOT deduct previously restocked items.' : ''}`,
             () => {
-                // Optimistic: remove from local history instantly
-                setPoHistory(prev => prev.filter(p => p.poId !== poId));
+                // Optimistic instant delete
+                setPoHistory(prev => prev.filter(p => p.poId !== po.poId));
 
                 // Background sync
-                import('../lib/supabase').then(async ({ supabase }) => {
-                    await supabase.from('purchase_orders').delete().eq('po_id', poId);
-                    refreshData();
-                }).catch(err => { console.error(err); refreshData(); });
+                import('../utils/supabaseActions').then(async ({ deletePurchaseOrderSupabase }) => {
+                    await deletePurchaseOrderSupabase(po.poId);
+                }).catch(err => { 
+                    console.error("Delete failed, restoring data:", err); 
+                    refreshData(); 
+                });
             }
         );
     };
@@ -391,6 +414,17 @@ export const PurchaseOrderView = () => {
         };
         setReceivingPO(poWithRecQty);
     };
+
+    // --- PAGINATION ---
+    const [poHistoryPage, setPoHistoryPage] = useState(1);
+    const poHistoryItemsPerPage = 50;
+    
+    useEffect(() => {
+        setPoHistoryPage(1);
+    }, [poHistorySearch]);
+
+    const totalPoHistoryPages = Math.ceil(filteredPoHistory.length / poHistoryItemsPerPage);
+    const paginatedPoHistory = filteredPoHistory.slice((poHistoryPage - 1) * poHistoryItemsPerPage, poHistoryPage * poHistoryItemsPerPage);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300 pb-12">
@@ -443,7 +477,7 @@ export const PurchaseOrderView = () => {
                         </div>
 
                         <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 grid grid-cols-1 xl:grid-cols-2 gap-4 auto-rows-max custom-scrollbar">
-                            {poFilteredInventory.map(item => {
+                            {poFilteredInventory.slice(0, 60).map(item => {
                                 const isOut = item.quantity === 0;
                                 const isLow = item.quantity > 0 && item.quantity <= item.threshold;
                                 const isDrafted = poDraft.some(p => p.id === item.id);
@@ -550,7 +584,17 @@ export const PurchaseOrderView = () => {
                 // Order History Tab
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col min-h-[500px]">
                     <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <h3 className="font-bold text-lg text-slate-800">Order History</h3>
+                        <div className="flex items-center gap-4">
+                            <h3 className="font-bold text-lg text-slate-800">Order History</h3>
+                            {poHistory.length > 0 && (
+                                <button
+                                    onClick={handleClearAllHistory}
+                                    className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors px-3 py-1 bg-red-50 rounded-lg hover:bg-red-100"
+                                >
+                                    <Trash2 size={14} /> Clear All History
+                                </button>
+                            )}
+                        </div>
                         <div className="relative w-full sm:w-64">
                             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
@@ -583,7 +627,7 @@ export const PurchaseOrderView = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredPoHistory.map(po => {
+                                    {paginatedPoHistory.map(po => {
                                         const poTotalValue = po.items.reduce((sum, i) => sum + ((i.price || 0) * (po.status === 'Completed' ? (i.receivedQty || 0) : i.orderQty)), 0);
                                         const poTotalUnits = po.items.reduce((sum, i) => sum + ((po.status === 'Completed' ? (i.receivedQty || 0) : parseInt(i.orderQty)) || 0), 0);
 
@@ -604,22 +648,49 @@ export const PurchaseOrderView = () => {
                                                 <td className="p-4 text-right flex items-center justify-end gap-2">
                                                     <button onClick={() => setViewingPO(po)} className="p-2 text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1] rounded-lg transition-colors" title="View Details"><Eye size={18} /></button>
                                                     <button onClick={() => generatePDF(po)} className="p-2 text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1] rounded-lg transition-colors" title="Download PDF"><Download size={18} /></button>
-
                                                     {po.status === 'Pending' ? (
                                                         <>
                                                             <button onClick={() => editPendingPO(po)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Draft"><Pencil size={18} /></button>
                                                             <button onClick={() => openReceivePOModal(po)} className="p-2 text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1] rounded-lg transition-colors" title="Mark as Received"><ClipboardCheck size={18} /></button>
-                                                            <button onClick={() => deletePendingPO(po.poId)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Order"><Trash2 size={18} /></button>
                                                         </>
                                                     ) : (
                                                         <button onClick={() => openReceivePOModal(po)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Received Quantities"><Pencil size={18} /></button>
                                                     )}
+                                                    <button onClick={() => deletePO(po)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Order"><Trash2 size={18} /></button>
                                                 </td>
                                             </tr>
                                         );
                                     })}
                                 </tbody>
                             </table>
+                        </div>
+                    )}
+                    
+                    {/* Pagination Controls */}
+                    {totalPoHistoryPages > 1 && (
+                        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-white rounded-b-2xl">
+                            <span className="text-sm text-slate-500 font-medium">
+                                Showing {((poHistoryPage - 1) * poHistoryItemsPerPage) + 1} to {Math.min(poHistoryPage * poHistoryItemsPerPage, filteredPoHistory.length)} of {filteredPoHistory.length} orders
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={() => setPoHistoryPage(p => Math.max(1, p - 1))} 
+                                    disabled={poHistoryPage === 1} 
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-sm font-bold text-slate-700 mx-2">
+                                    Page {poHistoryPage} of {totalPoHistoryPages}
+                                </span>
+                                <button 
+                                    onClick={() => setPoHistoryPage(p => Math.min(totalPoHistoryPages, p + 1))} 
+                                    disabled={poHistoryPage === totalPoHistoryPages || totalPoHistoryPages === 0} 
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Next
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
