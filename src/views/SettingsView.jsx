@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Plus, Eye, EyeOff, Pencil, Trash2, Package, Sun, Moon, User, Users, BarChart2, Tag, ChevronRight, TrendingUp, Activity, CheckCircle } from 'lucide-react';
+import { Plus, Eye, EyeOff, Pencil, Trash2, Package, Sun, Moon, User, Users, BarChart2, Tag, ChevronRight, TrendingUp, Activity, CheckCircle, AlertTriangle, XCircle, Lock } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { AVAILABLE_ICONS } from '../utils/data';
 import { StaffManagementCard } from '../components/StaffManagementCard';
 import { AccountSettingsCard } from '../components/AccountSettingsCard';
@@ -14,10 +15,11 @@ const ALL_TABS = [
     { id: 'staff', label: 'Staff', icon: Users, adminOnly: true },
     { id: 'analytics', label: 'Analytics', icon: Activity, adminOnly: true },
     { id: 'categories', label: 'Categories', icon: Tag, adminOnly: true },
+    { id: 'danger', label: 'Danger Zone', icon: AlertTriangle, adminOnly: true },
 ];
 
 export const SettingsView = () => {
-    const { isAdmin } = useAuth();
+    const { isAdmin, user } = useAuth();
     const {
         settings,
         setSettings,
@@ -39,6 +41,46 @@ export const SettingsView = () => {
     // Default: 'account' for all users; filter tabs by role
     const availableTabs = ALL_TABS.filter(t => !t.adminOnly || isAdmin);
     const [activeTab, setActiveTab] = useState(availableTabs[0].id);
+
+    // Danger Zone State
+    const [isDangerModalOpen, setIsDangerModalOpen] = useState(false);
+    const [dangerPassword, setDangerPassword] = useState('');
+    const [dangerLoading, setDangerLoading] = useState(false);
+    const [dangerError, setDangerError] = useState('');
+    const [dangerSuccess, setDangerSuccess] = useState('');
+
+    const handleWipeInventory = async (e) => {
+        e.preventDefault();
+        setDangerError('');
+        setDangerLoading(true);
+
+        try {
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email: user.email,
+                password: dangerPassword
+            });
+
+            if (signInError) throw new Error('Incorrect admin password, permission denied.');
+
+            const { wipeAllInventorySupabase } = await import('../utils/supabaseActions');
+            await wipeAllInventorySupabase();
+            
+            setDangerSuccess('All inventory items have been permanently wiped.');
+            setDangerPassword('');
+            refreshData();
+            
+            setTimeout(() => {
+                setIsDangerModalOpen(false);
+                setDangerSuccess('');
+                setActiveTab('account'); 
+            }, 2500);
+            
+        } catch (error) {
+            setDangerError(error.message || 'Verification failed');
+        } finally {
+            setDangerLoading(false);
+        }
+    };
 
     // ── Category helpers ────────────────────────────────────────────────────
     const confirmDeleteCategory = (catName) => {
@@ -290,6 +332,39 @@ export const SettingsView = () => {
                 </div>
             </div>
         ),
+
+        danger: (
+            <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-5 sm:p-6 w-full animate-in fade-in">
+                <div className="mb-6 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+                    <div>
+                        <h3 className="font-bold text-base text-red-600 flex items-center gap-2">
+                            <AlertTriangle size={18} /> Danger Zone
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">Critical administrative actions that cannot be undone.</p>
+                    </div>
+                </div>
+
+                <div className="p-4 border border-red-100 bg-red-50/50 rounded-xl flex flex-col sm:flex-row gap-4 justify-between items-center transition-all hover:bg-red-50">
+                    <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Wipe All Inventory Data</h4>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
+                            Permanently delete all products from the overall inventory. Note: This action is irreversible and requires your administrator password to confirm.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => {
+                            setDangerError('');
+                            setDangerSuccess('');
+                            setDangerPassword('');
+                            setIsDangerModalOpen(true);
+                        }}
+                        className="w-full sm:w-auto shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-sm transition-colors text-sm flex items-center justify-center gap-2"
+                    >
+                        <Trash2 size={16}/> Wipe Inventory
+                    </button>
+                </div>
+            </div>
+        ),
     };
 
     const activeTabMeta = availableTabs.find(t => t.id === activeTab);
@@ -303,12 +378,12 @@ export const SettingsView = () => {
             </div>
 
             {/* ── Layout: sidebar + content ─────────────────────────────────── */}
-            <div className="flex flex-col lg:flex-row gap-6 items-start">
+            <div className="flex flex-col lg:flex-row gap-6 items-start w-full max-w-full">
 
                 {/* ── Sidebar (desktop) / Horizontal pills (mobile) ── */}
                 {/* Mobile: horizontal scrollable pills */}
-                <div className="lg:hidden w-full">
-                    <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                <div className="lg:hidden w-full overflow-hidden">
+                    <div className="flex gap-2 overflow-x-auto pb-2 px-1 -mx-1 no-scrollbar min-w-0">
                         {availableTabs.map(tab => {
                             const Icon = tab.icon;
                             const active = activeTab === tab.id;
@@ -355,7 +430,7 @@ export const SettingsView = () => {
                 </nav>
 
                 {/* ── Content panel ── */}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 w-full">
                     {/* Section title (desktop) */}
                     <div className="hidden lg:flex items-center gap-2 mb-4">
                         {activeTabMeta && <activeTabMeta.icon size={18} className="text-[#08834c]" />}
@@ -368,6 +443,90 @@ export const SettingsView = () => {
                     </div>
                 </div>
             </div>
+
+            {/* DANGER MODAL */}
+            {isDangerModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-red-50">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-red-100 text-red-600 rounded-lg">
+                                    <AlertTriangle size={20} />
+                                </div>
+                                <h3 className="font-bold text-slate-800 text-lg">Confirm Action</h3>
+                            </div>
+                            <button onClick={() => !dangerLoading && !dangerSuccess && setIsDangerModalOpen(false)} className="text-slate-400 hover:text-red-500 transition-colors">
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6">
+                            {dangerSuccess ? (
+                                <div className="flex flex-col items-center justify-center py-6 animate-in zoom-in">
+                                    <div className="w-16 h-16 bg-green-100 text-[#08834c] rounded-full flex items-center justify-center mb-4 shadow-sm shadow-green-200">
+                                        <CheckCircle size={32} />
+                                    </div>
+                                    <h4 className="text-xl font-bold text-slate-800">Wipe Successful</h4>
+                                    <p className="text-slate-500 text-sm mt-2 text-center">{dangerSuccess}</p>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleWipeInventory}>
+                                    <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+                                        You are about to irreversibly delete all inventory products. Please verify your identity by entering your administrator password.
+                                    </p>
+                                    
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Administrator Password</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <Lock className="h-5 w-5 text-slate-400" />
+                                            </div>
+                                            <input
+                                                type="password"
+                                                required
+                                                value={dangerPassword}
+                                                onChange={e => setDangerPassword(e.target.value)}
+                                                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] focus:border-transparent outline-none transition-all text-sm font-medium"
+                                                placeholder="Enter password..."
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {dangerError && (
+                                        <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl text-sm flex items-start gap-2 border border-red-100 animate-in fade-in">
+                                            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                                            <span>{dangerError}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsDangerModalOpen(false)}
+                                            className="flex-1 py-3 px-4 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                                            disabled={dangerLoading}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={dangerLoading || !dangerPassword}
+                                            className={`flex-1 py-3 px-4 rounded-xl font-bold text-white transition-colors flex items-center justify-center gap-2 shadow-sm
+                                                ${(dangerLoading || !dangerPassword) ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+                                        >
+                                            {dangerLoading ? (
+                                                <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Verifying...</>
+                                            ) : (
+                                                <><Trash2 size={18} /> Confirm Delete</>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

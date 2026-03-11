@@ -36,6 +36,11 @@ export const deleteStockFromSupabase = async (id) => {
     if (error) console.error(error);
 };
 
+export const wipeAllInventorySupabase = async () => {
+    const { error } = await supabase.from('inventory').delete().neq('id', 'WIPING_ALL_TRICK_VALUE');
+    if (error) throw error;
+};
+
 
 // --- CATEGORIES ---
 export const addCategoryToSupabase = async (name, icon) => {

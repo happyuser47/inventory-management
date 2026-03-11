@@ -1,5 +1,5 @@
 import React from 'react';
-import { XCircle, ClipboardCheck, Trash2, PlusCircle, MinusCircle, Package, AlertTriangle } from 'lucide-react';
+import { XCircle, ClipboardCheck, Trash2, PlusCircle, MinusCircle, Package, AlertTriangle, Search, CheckCircle } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { formatDisplayDate } from '../utils/helpers';
 import { AVAILABLE_ICONS } from '../utils/data';
@@ -34,6 +34,8 @@ export const Modals = () => {
         confirmModal, showConfirm, closeConfirm,
         refreshData
     } = useInventory();
+
+    const [searchQuery, setSearchQuery] = React.useState(''); // Used for receiving stock modal dropdown filter
 
     // --- HANDLERS ---
     const handleReceivingQtyChange = (itemId, val) => {
@@ -213,10 +215,24 @@ export const Modals = () => {
                 updateStockQuantityToSupabase(receiveForm.id, currentItem.quantity + qty).then(() => refreshData()).catch(err => { console.error(err); refreshData(); });
             }
         } else {
+            // Anti-duplicate protection: Error out if name already exists
+            const trimmedName = receiveForm.name.trim();
+            const existingItem = inventory.find(i => i.name.toLowerCase() === trimmedName.toLowerCase());
+            
+            if (existingItem) {
+                 showConfirm(
+                    "Duplicate Medicine",
+                    `A medicine named "${existingItem.name}" already exists. Please use the 'Existing' tab to securely add stock to it.`,
+                    null,
+                    'amber'
+                );
+                return;
+            }
+
             const newId = `#MED${Math.floor(1000 + Math.random() * 9000)}`;
             const newItem = {
                 id: newId,
-                name: receiveForm.name,
+                name: trimmedName,
                 category: receiveForm.category,
                 quantity: qty,
                 price: price,
@@ -580,10 +596,72 @@ export const Modals = () => {
                         <div className="px-6 pt-4"><div className="flex bg-slate-100 p-1 rounded-lg"><button onClick={() => setReceiveMode('existing')} className={`flex-1 py-2 text-sm font-medium rounded-md ${receiveMode === 'existing' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500'}`}>Existing</button><button onClick={() => setReceiveMode('new')} className={`flex-1 py-2 text-sm font-medium rounded-md ${receiveMode === 'new' ? 'bg-white shadow-sm text-[#08834c]' : 'text-slate-500'}`}>New</button></div></div>
                         <form onSubmit={handleReceiveStock} className="p-6 space-y-4">
                             {receiveMode === 'existing' ? (
-                                <>
-                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Select Product</label><select required value={receiveForm.id} onChange={(e) => setReceiveForm({ ...receiveForm, id: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none"><option value="">-- Choose --</option>{inventory.map(item => (<option key={item.id} value={item.id}>{item.name}</option>))}</select></div>
-                                    {receiveForm.id && <div><label className="block text-sm font-medium text-slate-700 mb-1">Quantity Received</label><input type="number" min="1" required value={receiveForm.quantity} onChange={(e) => setReceiveForm({ ...receiveForm, quantity: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>}
-                                </>
+                                <div className="space-y-4 animate-in fade-in duration-300">
+                                    <div className="flex flex-col gap-2 relative">
+                                        <label className="block text-sm font-bold text-slate-700">Search & Select Product</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                                <Search size={16} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                placeholder="Search by name or category..."
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                className="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none text-sm transition-all shadow-sm"
+                                            />
+                                        </div>
+                                        <div className="bg-white border border-slate-200 rounded-xl overflow-y-auto custom-scrollbar shadow-sm max-h-[160px] flex flex-col mt-1">
+                                            {inventory.filter(i => {
+                                                const sq = searchQuery.toLowerCase();
+                                                return i.name.toLowerCase().includes(sq) || i.category.toLowerCase().includes(sq);
+                                            }).length === 0 ? (
+                                                <div className="p-5 flex flex-col items-center justify-center text-slate-400">
+                                                    <Package size={24} className="mb-2 text-slate-300" />
+                                                    <p className="text-xs font-medium">No system products match your search.</p>
+                                                </div>
+                                            ) : (
+                                                inventory.filter(i => {
+                                                    const sq = searchQuery.toLowerCase();
+                                                    return i.name.toLowerCase().includes(sq) || i.category.toLowerCase().includes(sq);
+                                                }).map(item => (
+                                                    <div 
+                                                        key={item.id} 
+                                                        onClick={() => setReceiveForm({ ...receiveForm, id: item.id })}
+                                                        className={`p-3 border-b border-slate-50 last:border-0 cursor-pointer transition-all flex justify-between items-center group ${receiveForm.id === item.id ? 'bg-[#edf6f1] border-l-4 border-l-[#08834c]' : 'hover:bg-slate-50 border-l-4 border-l-transparent'}`}
+                                                    >
+                                                        <div className="min-w-0 pr-3">
+                                                            <p className={`font-bold text-sm truncate ${receiveForm.id === item.id ? 'text-[#08834c]' : 'text-slate-800'}`}>{item.name}</p>
+                                                            <p className="text-[11px] text-slate-500 font-bold mt-0.5 tracking-wide uppercase">
+                                                                {item.category} <span className="text-slate-300 mx-1">•</span> <span className="text-blue-600">Stock: {item.quantity}</span>
+                                                            </p>
+                                                        </div>
+                                                        {receiveForm.id === item.id && <CheckCircle size={18} className="text-[#08834c] shrink-0" />}
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                    {receiveForm.id && (
+                                        <div className="animate-in slide-in-from-top-2 duration-300">
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Quantity Received</label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="number" min="1" required 
+                                                    value={receiveForm.quantity} 
+                                                    onChange={(e) => setReceiveForm({ ...receiveForm, quantity: e.target.value })} 
+                                                    className="w-full pl-4 pr-16 py-3 bg-white border border-[#08834c]/30 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none shadow-[0_0_15px_rgba(8,131,76,0.06)] transition-all font-bold text-slate-800" 
+                                                    placeholder="Enter stock amount..." 
+                                                />
+                                                <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
+                                                    <span className="text-xs font-bold text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg shadow-sm border border-slate-100 uppercase tracking-wide">
+                                                        {inventory.find(i => i.id === receiveForm.id)?.unit}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             ) : (
                                 <div className="space-y-4">
                                     <div><label className="block text-sm font-medium text-slate-700 mb-1">Product Name</label><input type="text" required value={receiveForm.name} onChange={(e) => setReceiveForm({ ...receiveForm, name: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08834c] outline-none" /></div>
