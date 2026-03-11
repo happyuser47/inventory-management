@@ -40,12 +40,17 @@ export const ReportsView = () => {
             totalDispenseValue += Number(record.totalAmount || 0);
             record.items.forEach(item => {
                 totalDispenseUnits += Number(item.dispenseQty);
-                if (!dispenseItemsMap[item.id]) {
-                    const invItem = inventory.find(inv => inv.id === item.id);
-                    dispenseItemsMap[item.id] = { name: item.name, qty: 0, value: 0, left: invItem ? invItem.quantity : 0 };
+                
+                // Group by name instead of strict ID to handle historic wipe/uploads
+                const safeName = (item.name || "Unknown").trim().toLowerCase();
+                
+                if (!dispenseItemsMap[safeName]) {
+                    const invItem = inventory.find(inv => inv.id === item.id) 
+                                 || inventory.find(inv => (inv.name || "").trim().toLowerCase() === safeName);
+                    dispenseItemsMap[safeName] = { name: item.name, qty: 0, value: 0, left: invItem ? invItem.quantity : 0 };
                 }
-                dispenseItemsMap[item.id].qty += Number(item.dispenseQty);
-                dispenseItemsMap[item.id].value += (Number(item.price) * Number(item.dispenseQty));
+                dispenseItemsMap[safeName].qty += Number(item.dispenseQty);
+                dispenseItemsMap[safeName].value += (Number(item.price) * Number(item.dispenseQty));
             });
         });
 
@@ -68,12 +73,16 @@ export const ReportsView = () => {
                     totalPurchaseValue += lineTotal;
                     totalPurchaseUnits += received;
 
-                    if (!purchaseItemsMap[item.id]) {
-                        const invItem = inventory.find(inv => inv.id === item.id);
-                        purchaseItemsMap[item.id] = { name: item.name, qty: 0, value: 0, left: invItem ? invItem.quantity : 0 };
+                    // Group by name instead of strict ID to handle historic wipe/uploads
+                    const safeName = (item.name || "Unknown").trim().toLowerCase();
+
+                    if (!purchaseItemsMap[safeName]) {
+                        const invItem = inventory.find(inv => inv.id === item.id) 
+                                     || inventory.find(inv => (inv.name || "").trim().toLowerCase() === safeName);
+                        purchaseItemsMap[safeName] = { name: item.name, qty: 0, value: 0, left: invItem ? invItem.quantity : 0 };
                     }
-                    purchaseItemsMap[item.id].qty += received;
-                    purchaseItemsMap[item.id].value += lineTotal;
+                    purchaseItemsMap[safeName].qty += received;
+                    purchaseItemsMap[safeName].value += lineTotal;
                 }
             });
         });
