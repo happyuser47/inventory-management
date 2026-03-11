@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { AVAILABLE_ICONS } from '../utils/data';
 import { useAuth } from './AuthContext';
 
 const InventoryContext = createContext();

@@ -143,14 +143,14 @@ export const ReportsView = () => {
             ${includePO ? `
             <div class="card">
               <div class="card-title">Total Incoming (Purchases)</div>
-              <div class="card-value blue">Rs. ${reportData.totalPurchaseValue.toLocaleString()}</div>
-              <div class="card-sub">${reportData.totalPurchaseUnits} units received</div>
+              <div class="card-value blue">${reportData.totalPurchaseUnits} units</div>
+              <div class="card-sub">Rs. ${reportData.totalPurchaseValue.toLocaleString()}</div>
             </div>` : ''}
             ${includeDispense ? `
             <div class="card">
               <div class="card-title">Total Outgoing (Dispenses)</div>
-              <div class="card-value green">Rs. ${reportData.totalDispenseValue.toLocaleString()}</div>
-              <div class="card-sub">${reportData.totalDispenseUnits} units dispensed</div>
+              <div class="card-value green">${reportData.totalDispenseUnits} units</div>
+              <div class="card-sub">Rs. ${reportData.totalDispenseValue.toLocaleString()}</div>
             </div>` : ''}
           </div>
 
