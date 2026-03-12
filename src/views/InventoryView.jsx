@@ -194,8 +194,47 @@ export const InventoryView = () => {
                         </div>
                     </div>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse min-w-[800px]">
+                {/* Product List - Mobile View (Cards) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                    {paginatedInventory.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400">
+                            <Package size={40} className="mx-auto mb-3 opacity-20" />
+                            <p>No products found.</p>
+                        </div>
+                    ) : (
+                        paginatedInventory.map(item => {
+                            const status = getStatus(item);
+                            return (
+                                <div key={item.id} className="p-4 bg-white hover:bg-slate-50 transition-colors">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="min-w-0 pr-2">
+                                            <h4 className="font-bold text-slate-800 truncate">{item.name}</h4>
+                                            <p className="text-xs text-slate-500 mt-0.5">{item.category}</p>
+                                        </div>
+                                        <span className={`whitespace-nowrap px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${status.color}`}>
+                                            {status.label}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-end">
+                                        <div className="space-y-1">
+                                            <p className="text-sm text-slate-600 font-medium">Qty: {item.quantity} <span className="text-slate-400 text-xs font-normal">({item.unit})</span></p>
+                                            <p className="text-sm text-[#08834c] font-bold">Rs. {item.price.toFixed(2)}</p>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <button onClick={() => setViewingProduct(item)} className="p-2 text-slate-400 hover:text-[#08834c] rounded-lg bg-slate-50" title="View"><Eye size={16} /></button>
+                                            <button onClick={() => handleEditClick(item)} className="p-2 text-slate-400 hover:text-blue-600 rounded-lg bg-slate-50" title="Edit"><Pencil size={16} /></button>
+                                            <button onClick={() => confirmDelete(item)} className="p-2 text-slate-400 hover:text-red-600 rounded-lg bg-slate-50" title="Delete"><Trash2 size={16} /></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* Product List - Desktop View (Table) */}
+                <div className="hidden md:block overflow-x-auto overflow-y-hidden">
+                    <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50/50 text-slate-500 text-sm border-b border-slate-100">
                                 <th className="p-4 font-medium">Product Name</th>
@@ -210,11 +249,11 @@ export const InventoryView = () => {
                                 const status = getStatus(item);
                                 return (
                                     <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                        <td className="p-4 text-sm font-medium text-slate-800">{item.name}</td>
-                                        <td className="p-4 text-sm text-slate-600">{item.quantity} <span className="text-slate-400 text-xs">{item.unit}</span></td>
-                                        <td className="p-4 text-sm text-slate-600">Rs. {item.price.toFixed(2)}</td>
-                                        <td className="p-4"><span className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium ${status.color}`}>{status.label}</span></td>
-                                        <td className="p-4 flex items-center justify-end gap-2">
+                                        <td className="p-4 text-sm font-bold text-slate-800">{item.name}</td>
+                                        <td className="p-4 text-sm text-slate-600 font-medium">{item.quantity} <span className="text-slate-400 text-xs font-normal">{item.unit}</span></td>
+                                        <td className="p-4 text-sm text-slate-600 font-bold">Rs. {item.price.toFixed(2)}</td>
+                                        <td className="p-4"><span className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${status.color}`}>{status.label}</span></td>
+                                        <td className="p-4 flex items-center justify-end gap-2 text-right">
                                             <button onClick={() => setViewingProduct(item)} className="p-2 text-slate-400 hover:text-[#08834c] rounded-lg hover:bg-[#edf6f1]" title="View Details"><Eye size={16} /></button>
                                             <button onClick={() => handleEditClick(item)} className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50" title="Edit Product"><Pencil size={16} /></button>
                                             <button onClick={() => confirmDelete(item)} className="p-2 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Delete Product"><Trash2 size={16} /></button>

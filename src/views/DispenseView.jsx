@@ -316,7 +316,37 @@ export const DispenseView = () => {
                             <p className="text-lg">No matching dispensing records found.</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
+                      <>
+                        {/* Mobile View - Cards */}
+                        <div className="sm:hidden divide-y divide-slate-100">
+                            {paginatedHistory.map(record => (
+                                <div key={record.recordId} className="p-4 bg-white hover:bg-slate-50 transition-colors">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="text-xs font-bold text-[#08834c]">#{record.recordId.toString().slice(-6)}</span>
+                                        <span className="font-bold text-slate-800">Rs. {record.totalAmount.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-3">
+                                        <Clock size={12} />
+                                        {formatDisplayDate(record.timestamp)}
+                                    </div>
+                                    <p className="text-xs text-slate-600 mb-4">
+                                        {record.items.length} items ({record.items.reduce((s, i) => s + (parseInt(i.dispenseQty) || 0), 0)} units)
+                                    </p>
+                                    <div className="flex justify-end gap-2">
+                                        <button onClick={() => setViewingRecord(record)} className="p-2 text-slate-400 hover:text-[#08834c] bg-slate-50 rounded-lg transition-colors border border-slate-100" title="View"><Eye size={16} /></button>
+                                        {isAdmin && (
+                                            <button onClick={() => openEditRecordModal(record)} className="p-2 text-slate-400 hover:text-blue-600 bg-slate-50 rounded-lg transition-colors border border-slate-100" title="Edit"><Pencil size={16} /></button>
+                                        )}
+                                        {isAdmin && (
+                                            <button onClick={() => confirmDeleteRecord(record)} className="p-2 text-slate-400 hover:text-red-600 bg-slate-50 rounded-lg transition-colors border border-slate-100" title="Delete"><Trash2 size={16} /></button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop View - Table */}
+                        <div className="hidden sm:block overflow-x-auto overflow-y-hidden">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50/50 text-slate-500 text-sm border-b border-slate-100">
@@ -355,6 +385,7 @@ export const DispenseView = () => {
                                 </tbody>
                             </table>
                         </div>
+                      </>
                     )}
                     
                     {/* Pagination Controls */}

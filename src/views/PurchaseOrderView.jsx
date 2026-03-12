@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle2, ClipboardList, Search, PackageSearch, PackagePlus, XCircle, MinusCircle, PlusCircle, Download, FileText, Eye, Pencil, ClipboardCheck, Trash2 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
+import { useAuth } from '../context/AuthContext';
 import { formatDisplayDate } from '../utils/helpers';
 import { CLINIC_LOGO_BASE64 } from '../utils/clinicLogo';
 
 export const PurchaseOrderView = () => {
+    const { isAdmin } = useAuth();
     const {
         inventory,
         poHistory, setPoHistory,
@@ -45,9 +47,10 @@ export const PurchaseOrderView = () => {
     }, [inventory, poSearch, poFilter]);
 
     const filteredPoHistory = React.useMemo(() => {
+        if (!Array.isArray(poHistory)) return [];
         return poHistory.filter(po => {
             if (!poHistorySearch) return true;
-            return po.poId.toLowerCase().includes(poHistorySearch.toLowerCase());
+            return (po.poId || '').toLowerCase().includes(poHistorySearch.toLowerCase());
         });
     }, [poHistory, poHistorySearch]);
 
@@ -423,8 +426,8 @@ export const PurchaseOrderView = () => {
         setPoHistoryPage(1);
     }, [poHistorySearch]);
 
-    const totalPoHistoryPages = Math.ceil(filteredPoHistory.length / poHistoryItemsPerPage);
-    const paginatedPoHistory = filteredPoHistory.slice((poHistoryPage - 1) * poHistoryItemsPerPage, poHistoryPage * poHistoryItemsPerPage);
+    const totalPoHistoryPages = Math.ceil((filteredPoHistory || []).length / poHistoryItemsPerPage);
+    const paginatedPoHistory = (filteredPoHistory || []).slice((poHistoryPage - 1) * poHistoryItemsPerPage, poHistoryPage * poHistoryItemsPerPage);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300 pb-12">
@@ -613,7 +616,41 @@ export const PurchaseOrderView = () => {
                             <p className="text-lg">No matching purchase orders found.</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <>
+                            {/* Mobile View - Cards */}
+                            <div className="md:hidden divide-y divide-slate-100">
+                                {paginatedPoHistory.map(po => {
+                                    const poTotalValue = (po.items || []).reduce((sum, i) => sum + ((i.price || 0) * (po.status === 'Completed' ? (i.receivedQty || 0) : (i.orderQty || 0))), 0);
+                                    const poTotalUnits = (po.items || []).reduce((sum, i) => sum + ((po.status === 'Completed' ? (i.receivedQty || 0) : parseInt(i.orderQty || 0)) || 0), 0);
+                                    return (
+                                        <div key={po.poId} className="p-4 bg-white hover:bg-slate-50 transition-colors">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-xs font-bold text-[#08834c]">{po.poId}</span>
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${po.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                    {po.status}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 mb-3">
+                                                <div className="text-[10px] text-slate-500">
+                                                    <p>Created: {formatDisplayDate(po.date)}</p>
+                                                    {po.completionDate && <p>Completed: {formatDisplayDate(po.completionDate)}</p>}
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-bold text-slate-800">Rs. {poTotalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                                                    <p className="text-[10px] text-slate-500">{po.items.length} items ({poTotalUnits} units)</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={() => setViewingPO(po)} className="p-2 text-slate-400 hover:text-[#08834c] bg-slate-50 rounded-lg border border-slate-100" title="View"><Eye size={16} /></button>
+                                                <button onClick={() => generatePDF(po)} className="p-2 text-slate-400 hover:text-[#08834c] bg-slate-50 rounded-lg border border-slate-100" title="PDF"><Download size={16} /></button>
+                                                <button onClick={() => deletePO(po)} className="p-2 text-slate-400 hover:text-red-600 bg-slate-50 rounded-lg border border-slate-100" title="Delete"><Trash2 size={16} /></button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50/50 text-slate-500 text-sm border-b border-slate-100">
@@ -628,8 +665,8 @@ export const PurchaseOrderView = () => {
                                 </thead>
                                 <tbody>
                                     {paginatedPoHistory.map(po => {
-                                        const poTotalValue = po.items.reduce((sum, i) => sum + ((i.price || 0) * (po.status === 'Completed' ? (i.receivedQty || 0) : i.orderQty)), 0);
-                                        const poTotalUnits = po.items.reduce((sum, i) => sum + ((po.status === 'Completed' ? (i.receivedQty || 0) : parseInt(i.orderQty)) || 0), 0);
+                                        const poTotalValue = (po.items || []).reduce((sum, i) => sum + ((i.price || 0) * (po.status === 'Completed' ? (i.receivedQty || 0) : (i.orderQty || 0))), 0);
+                                        const poTotalUnits = (po.items || []).reduce((sum, i) => sum + ((po.status === 'Completed' ? (i.receivedQty || 0) : parseInt(i.orderQty || 0)) || 0), 0);
 
                                         return (
                                             <tr key={po.poId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -664,6 +701,7 @@ export const PurchaseOrderView = () => {
                                 </tbody>
                             </table>
                         </div>
+                      </>
                     )}
                     
                     {/* Pagination Controls */}

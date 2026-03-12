@@ -120,7 +120,7 @@ export const InventoryProvider = ({ children }) => {
                     status: po.status,
                     date: po.date,
                     completionDate: po.completion_date,
-                    items: po.purchase_order_items.map(poi => ({
+                    items: (po.purchase_order_items || []).map(poi => ({
                         id: poi.item_id,
                         name: poi.item_name,
                         unit: poi.item_unit,
