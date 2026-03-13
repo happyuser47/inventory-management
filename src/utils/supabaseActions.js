@@ -66,14 +66,15 @@ export const deleteCategoryFromSupabase = async (name) => {
 
 
 // --- DISPENSING ---
-export const processDispensingSupabase = async (recordId, items, totalAmount) => {
+export const processDispensingSupabase = async (recordId, items, totalAmount, dispensedBy = null) => {
     const timestamp = new Date().toISOString();
 
     // 1. Create Record
     const { error: rError } = await supabase.from('dispense_history').insert([{
         record_id: recordId,
         timestamp,
-        total_amount: totalAmount
+        total_amount: totalAmount,
+        dispensed_by: dispensedBy
     }]);
     if (rError) { console.error(rError); return; }
 

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { formatDisplayDate } from '../utils/helpers';
 
 export const DispenseView = () => {
-    const { isAdmin } = useAuth();
+    const { isAdmin, userFullName } = useAuth();
     const {
         inventory, setInventory,
         historyRecords, setHistoryRecords,
@@ -115,6 +115,7 @@ export const DispenseView = () => {
             recordId,
             timestamp: new Date().toISOString(),
             totalAmount: currentCartTotal,
+            dispensedBy: userFullName,
             items: cartSnapshot.map(i => ({
                 id: i.id,
                 name: i.name,
@@ -128,7 +129,7 @@ export const DispenseView = () => {
 
         // Background sync
         import('../utils/supabaseActions').then(async ({ processDispensingSupabase }) => {
-            await processDispensingSupabase(recordId, cartSnapshot, currentCartTotal);
+            await processDispensingSupabase(recordId, cartSnapshot, currentCartTotal, userFullName);
             refreshData();
         }).catch(err => {
             console.error(err);

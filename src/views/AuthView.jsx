@@ -3,6 +3,7 @@ import { Mail, Lock, User, ArrowRight, ShieldCheck, Stethoscope, AlertTriangle }
 import { supabase } from '../lib/supabase';
 import clinicLogo from '../assets/main.png';
 import emblemLogo from '../assets/logo.png';
+import brandLogo from '../assets/pdf.png';
 
 export const AuthView = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -90,7 +91,7 @@ export const AuthView = () => {
 
                     <div className="max-w-md w-full mx-auto">
                         <div className="mb-8 text-center md:text-left flex flex-col items-center md:items-start">
-                            <img src={clinicLogo} alt="MNHC" className="h-14 w-auto object-contain mb-6 drop-shadow-sm" />
+                            <img src={brandLogo} alt="MNHC" className="h-14 w-auto object-contain mb-6 drop-shadow-sm" />
                             <h2 className="text-3xl font-bold text-slate-800 mb-2">
                                 Welcome Back
                             </h2>
