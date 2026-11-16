@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, CheckCircle2, ClipboardList, Search, PackageSearch, PackagePlus, XCircle, MinusCircle, PlusCircle, Download, FileText, Eye, Pencil, ClipboardCheck, Trash2 } from 'lucide-react';
+import { Clock, CheckCircle2, ClipboardList, Search, PackageSearch, PackagePlus, XCircle, MinusCircle, PlusCircle, Download, FileText, Eye, Pencil, ClipboardCheck, Trash2, Copy } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { useAuth } from '../context/AuthContext';
 import { formatDisplayDate } from '../utils/helpers';
@@ -17,6 +17,7 @@ export const PurchaseOrderView = () => {
         poTab, setPoTab,
         setReceivingPO,
         setViewingPO,
+        setDuplicatingPO,
         showConfirm,
         refreshData
     } = useInventory();
@@ -643,6 +644,7 @@ export const PurchaseOrderView = () => {
                                             <div className="flex justify-end gap-2">
                                                 <button onClick={() => setViewingPO(po)} className="p-2 text-slate-400 hover:text-[#08834c] bg-slate-50 rounded-lg border border-slate-100" title="View"><Eye size={16} /></button>
                                                 <button onClick={() => generatePDF(po)} className="p-2 text-slate-400 hover:text-[#08834c] bg-slate-50 rounded-lg border border-slate-100" title="PDF"><Download size={16} /></button>
+                                                <button onClick={() => setDuplicatingPO(po)} className="p-2 text-slate-400 hover:text-[#08834c] bg-slate-50 rounded-lg border border-slate-100" title="Duplicate Order (Load Current Data)"><Copy size={16} /></button>
                                                 <button onClick={() => deletePO(po)} className="p-2 text-slate-400 hover:text-red-600 bg-slate-50 rounded-lg border border-slate-100" title="Delete"><Trash2 size={16} /></button>
                                             </div>
                                         </div>
@@ -685,6 +687,7 @@ export const PurchaseOrderView = () => {
                                                 <td className="p-4 text-right flex items-center justify-end gap-2">
                                                     <button onClick={() => setViewingPO(po)} className="p-2 text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1] rounded-lg transition-colors" title="View Details"><Eye size={18} /></button>
                                                     <button onClick={() => generatePDF(po)} className="p-2 text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1] rounded-lg transition-colors" title="Download PDF"><Download size={18} /></button>
+                                                    <button onClick={() => setDuplicatingPO(po)} className="p-2 text-slate-400 hover:text-[#08834c] hover:bg-[#edf6f1] rounded-lg transition-colors" title="Duplicate Order (Load Current Data)"><Copy size={18} /></button>
                                                     {po.status === 'Pending' ? (
                                                         <>
                                                             <button onClick={() => editPendingPO(po)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Draft"><Pencil size={18} /></button>

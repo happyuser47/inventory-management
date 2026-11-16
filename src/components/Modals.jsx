@@ -1,8 +1,9 @@
 import React from 'react';
-import { XCircle, ClipboardCheck, Trash2, PlusCircle, MinusCircle, Package, AlertTriangle, Search, CheckCircle } from 'lucide-react';
+import { XCircle, ClipboardCheck, Trash2, PlusCircle, MinusCircle, Package, AlertTriangle, Search, CheckCircle, Copy } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { formatDisplayDate } from '../utils/helpers';
 import { AVAILABLE_ICONS } from '../utils/data';
+import { DuplicateOrderModal } from './DuplicateOrderModal';
 import {
     receivePOSupabase, addCategoryToSupabase, updateCategoryToSupabase,
     updateStockQuantityToSupabase, deleteDispensingRecordSupabase,
@@ -20,6 +21,7 @@ export const Modals = () => {
         hiddenCategories, setHiddenCategories,
         receivingPO, setReceivingPO,
         viewingPO, setViewingPO,
+        duplicatingPO, setDuplicatingPO,
         isCategoryModalOpen, setIsCategoryModalOpen,
         categoryModalMode, setCategoryModalMode,
         categoryForm, setCategoryForm,
@@ -376,11 +378,26 @@ export const Modals = () => {
                             </div>
                         </div>
 
-                        <div className="p-6 border-t border-slate-100 bg-white flex justify-between items-center shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] relative z-10">
-                            <span className="text-slate-500 font-medium">{viewingPO.status === 'Completed' ? 'Final Order Value' : 'Estimated Order Value'}</span>
-                            <span className="text-2xl sm:text-3xl font-bold text-[#08834c]">
-                                Rs. {viewingPO.items.reduce((sum, i) => sum + ((i.price || 0) * (viewingPO.status === 'Completed' ? (i.receivedQty || 0) : i.orderQty)), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
+                        <div className="p-6 border-t border-slate-100 bg-white flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] relative z-10">
+                            <div>
+                                <span className="text-slate-500 font-medium block text-xs">{viewingPO.status === 'Completed' ? 'Final Order Value' : 'Estimated Order Value'}</span>
+                                <span className="text-2xl sm:text-3xl font-bold text-[#08834c]">
+                                    Rs. {viewingPO.items.reduce((sum, i) => sum + ((i.price || 0) * (viewingPO.status === 'Completed' ? (i.receivedQty || 0) : i.orderQty)), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        const poToDup = viewingPO;
+                                        setViewingPO(null);
+                                        setDuplicatingPO(poToDup);
+                                    }}
+                                    className="flex-1 sm:flex-none px-4 py-2.5 bg-[#08834c] hover:bg-[#076c3e] text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow"
+                                    title="Duplicate this order using current inventory data"
+                                >
+                                    <Copy size={16} /> Duplicate Order
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -730,6 +747,8 @@ export const Modals = () => {
                     </div>
                 </div>
             )}
+            {/* Duplicate Purchase Order Modal */}
+            <DuplicateOrderModal />
         </>
     );
 };

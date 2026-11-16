@@ -54,6 +54,7 @@ export const InventoryProvider = ({ children }) => {
     const [poTab, setPoTab] = useState('create');
     const [receivingPO, setReceivingPO] = useState(null);
     const [viewingPO, setViewingPO] = useState(null);
+    const [duplicatingPO, setDuplicatingPO] = useState(null);
 
     // Modals & Settings State
     const [isReceivingModalOpen, setIsReceivingModalOpen] = useState(false);
@@ -288,6 +289,7 @@ export const InventoryProvider = ({ children }) => {
         poTab, setPoTab,
         receivingPO, setReceivingPO,
         viewingPO, setViewingPO,
+        duplicatingPO, setDuplicatingPO,
         isReceivingModalOpen, setIsReceivingModalOpen,
         receiveMode, setReceiveMode,
         viewingProduct, setViewingProduct,
